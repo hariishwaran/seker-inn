@@ -34,28 +34,14 @@ export default function BillingInvoicesView({
   onDeleteInvoice,
   onUpdateInvoiceStatus
 }: BillingInvoicesViewProps) {
-  const [activeView, setActiveView] = useState<'invoices' | 'history'>('invoices');
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilterStatus, setActiveFilterStatus] = useState<'All' | 'Paid' | 'Unpaid' | 'Draft'>('All');
   const [activeHistoryFilter, setActiveHistoryFilter] = useState<'All' | 'Active' | 'Completed'>('All');
-  const [showFiltersMenu, setShowFiltersMenu] = useState(false);
   const [showHistoryFiltersMenu, setShowHistoryFiltersMenu] = useState(false);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
   
   // Local pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
-
-  // Search & Status filters for Invoices Tab
-  const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch = 
-      inv.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.roomNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (activeFilterStatus === 'All') return matchesSearch;
-    return matchesSearch && inv.status.toLowerCase() === activeFilterStatus.toLowerCase();
-  });
 
   // Compile unified Booking / Stay entries for history Tab
   // 1. Live stays (currently occupied rooms)
@@ -85,6 +71,8 @@ export default function BillingInvoicesView({
   const archivedStays = invoices.map(inv => ({
     type: 'Completed' as const,
     id: `STAY-ARCH-${inv.id}`,
+    invoiceId: inv.id,
+    invoiceStatus: inv.status,
     guestName: inv.customerName,
     roomNumber: inv.roomNumber,
     roomType: inv.roomType,
@@ -108,12 +96,6 @@ export default function BillingInvoicesView({
     if (activeHistoryFilter === 'All') return matchesSearch;
     return matchesSearch && b.type === activeHistoryFilter;
   });
-
-  // Pagination helper bounds (Invoices)
-  const totalInvoices = filteredInvoices.length;
-  const invoicesTotalPages = Math.ceil(totalInvoices / itemsPerPage) || 1;
-  const invoicesStartIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedInvoices = filteredInvoices.slice(invoicesStartIndex, invoicesStartIndex + itemsPerPage);
 
   // Pagination helper bounds (History)
   const totalHistory = filteredHistory.length;
@@ -175,265 +157,8 @@ export default function BillingInvoicesView({
         </button>
       </section>
 
-      {/* Sub-tab Selection Buttons */}
-      <div className="flex bg-white/5 p-1 border border-white/10 rounded-xl max-w-sm">
-        <button 
-          onClick={() => {
-            setActiveView('invoices');
-            setCurrentPage(1);
-            setSearchTerm('');
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-bold font-display transition-all cursor-pointer ${
-            activeView === 'invoices' 
-              ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md font-black' 
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-          id="tab-invoices-ledger"
-        >
-          <Receipt className="h-4 w-4" />
-          <span>Recent Invoices</span>
-        </button>
-        <button 
-          onClick={() => {
-            setActiveView('history');
-            setCurrentPage(1);
-            setSearchTerm('');
-          }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-bold font-display transition-all cursor-pointer ${
-            activeView === 'history' 
-              ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md font-black' 
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-          id="tab-booking-history"
-        >
-          <Calendar className="h-4 w-4" />
-          <span>Booking History</span>
-        </button>
-      </div>
-
-      {activeView === 'invoices' ? (
-        /* ==================== SCREEN A: INVOICES LEDGER ==================== */
-        <section className="glass-panel rounded-2xl overflow-hidden shadow-lg border border-white/10" id="invoices-main-table-container">
-          
-          {/* Table Toolbar / Utility Head */}
-          <div className="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/5 backdrop-blur-md">
-            <div>
-              <h4 className="text-base font-semibold text-white font-display">Invoice Log Registry</h4>
-              <p className="text-[11px] text-white/40 mt-0.5">Historical and active invoice receipts computed for hotel operations.</p>
-            </div>
-            <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center w-full sm:w-auto">
-              {/* Realtime Search bar */}
-              <div className="relative flex-grow sm:flex-grow-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-                <input 
-                  type="text"
-                  placeholder="Search invoices..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="pl-9 pr-4 py-2 bg-white/5 border border-white/10 text-white rounded-xl text-xs focus:outline-none focus:border-indigo-500 w-full sm:w-60"
-                />
-              </div>
-
-              {/* Filter category dropdown activator */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowFiltersMenu(!showFiltersMenu)}
-                  className="p-2.5 bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 rounded-xl transition-all flex items-center gap-1.5 text-[11px] font-semibold cursor-pointer"
-                  title="Filter invoices"
-                >
-                  <ListFilter className="h-4 w-4 text-white/50" />
-                  <span>Status: {activeFilterStatus}</span>
-                </button>
-
-                {showFiltersMenu && (
-                  <div 
-                    className="absolute right-0 mt-2 w-40 bg-[#12121e]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-xl z-50 py-1.5"
-                    onMouseLeave={() => setShowFiltersMenu(false)}
-                  >
-                    {(['All', 'Paid', 'Unpaid', 'Draft'] as const).map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => {
-                          setActiveFilterStatus(filter);
-                          setShowFiltersMenu(false);
-                          setCurrentPage(1);
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white font-medium cursor-pointer transition-colors"
-                      >
-                        {filter}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Data Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse" id="invoices-table">
-              <thead>
-                <tr className="bg-white/5 text-xs font-bold text-white/40 uppercase tracking-widest border-b border-white/5">
-                  <th className="px-6 py-4">Invoice ID</th>
-                  <th className="px-6 py-4">Customer Name</th>
-                  <th className="px-6 py-4">Room No</th>
-                  <th className="px-6 py-4">Date Produced</th>
-                  <th className="px-6 py-4">Grand Total</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {paginatedInvoices.map((inv) => (
-                  <tr 
-                    key={inv.id}
-                    className="hover:bg-white/5 transition-all duration-150"
-                  >
-                    <td className="px-6 py-4 font-mono text-xs font-semibold text-indigo-300">
-                      {inv.id}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/10 to-violet-500/20 border border-indigo-500/15 flex items-center justify-center text-[10px] font-bold text-indigo-300 font-display">
-                          {getInitials(inv.customerName)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-white/95">{inv.customerName}</p>
-                          <p className="text-[10px] text-white/40 font-mono">{inv.customerPhone || 'No Contacts'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-xs font-bold text-white">{inv.roomNumber}</p>
-                        <p className="text-[10px] text-white/40">{inv.roomType}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-white/60">
-                      {inv.date}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-black text-emerald-400 font-mono">
-                      ₹{(inv.grandTotal ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(inv.status)}
-                    </td>
-                    <td className="px-6 py-4 text-right relative">
-                      <button 
-                        onClick={() => setActiveActionMenuId(activeActionMenuId === inv.id ? null : inv.id)}
-                        className="p-1.5 hover:bg-white/10 border border-transparent hover:border-white/5 rounded-lg transition-all text-white/40 hover:text-white"
-                      >
-                        <MoreVertical className="h-4.5 w-4.5" />
-                      </button>
-
-                      {/* Popover Action Menu */}
-                      {activeActionMenuId === inv.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-10" 
-                            onClick={() => setActiveActionMenuId(null)}
-                          />
-                          <div 
-                            className="absolute right-6 mt-1 w-48 bg-[#12121e]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-xl z-20 py-1 text-left"
-                            onMouseLeave={() => setActiveActionMenuId(null)}
-                          >
-                            <button
-                              onClick={() => {
-                                onViewInvoice(inv);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full text-left px-4 py-2.5 text-xs text-white/75 hover:bg-white/10 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
-                            >
-                              <Eye className="h-4 w-4 text-white/40" />
-                              <span>View / Print Invoice</span>
-                            </button>
-                            
-                            <button
-                              onClick={() => {
-                                onUpdateInvoiceStatus(inv.id, inv.status === 'Paid' ? 'Unpaid' : 'Paid');
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full text-left px-4 py-2.5 text-xs text-white/75 hover:bg-white/10 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
-                            >
-                              <CreditCard className="h-4 w-4 text-white/40" />
-                              <span>Mark as {inv.status === 'Paid' ? 'Unpaid' : 'Paid'}</span>
-                            </button>
-
-                            <div className="border-t border-white/10 my-1"></div>
-
-                            <button
-                              onClick={() => {
-                                onDeleteInvoice(inv.id);
-                                setActiveActionMenuId(null);
-                              }}
-                              className="w-full text-left px-4 py-2.5 text-xs text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 font-medium transition-colors cursor-pointer"
-                            >
-                              <Trash className="h-4 w-4 text-rose-400/80" />
-                              <span>Delete Record</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-
-                {paginatedInvoices.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-white/30 text-xs">
-                      No invoices found matching criteria.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Table Footer / Pagination */}
-          <div className="px-6 py-4 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/5 backdrop-blur-md">
-            <span className="text-xs text-white/40 font-semibold">
-              Showing {totalInvoices > 0 ? invoicesStartIndex + 1 : 0} to {Math.min(invoicesStartIndex + itemsPerPage, totalInvoices)} of {totalInvoices} invoice slips
-            </span>
-            
-            <div className="flex gap-1.5 items-center">
-              <button 
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-                className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white text-white/60 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              
-              {Array.from({ length: invoicesTotalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1 bg-white/5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                    currentPage === page
-                      ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white border-transparent'
-                      : 'text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-
-              <button 
-                disabled={currentPage === invoicesTotalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white text-white/60 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </section>
-      ) : (
-        /* ==================== SCREEN B: BOOKING & STAY HISTORY ==================== */
-        <section className="glass-panel rounded-2xl overflow-hidden shadow-lg border border-white/10" id="booking-history-container">
+      {/* ==================== SINGLE UNIFIED LEDGER ==================== */}
+      <section className="glass-panel rounded-2xl overflow-hidden shadow-lg border border-white/10" id="booking-history-container">
           
           {/* Table Toolbar / Utility Head */}
           <div className="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/5 backdrop-blur-md">
@@ -493,7 +218,7 @@ export default function BillingInvoicesView({
           </div>
 
           {/* Records Table */}
-          <div className="overflow-x-auto overflow-y-visible">
+          <div className="overflow-x-auto overflow-y-visible min-h-[260px]">
             <table className="w-full text-left border-collapse" id="history-table">
               <thead>
                 <tr className="bg-white/5 text-xs font-bold text-white/40 uppercase tracking-widest border-b border-white/5">
@@ -566,13 +291,10 @@ export default function BillingInvoicesView({
                           <span>Checked In</span>
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 bg-indigo-500/10 text-indigo-300 text-[10px] rounded-lg font-bold border border-indigo-500/20 flex items-center gap-1.5 w-fit">
-                          <CheckCircle className="h-3.5 w-3.5 text-indigo-400/80" />
-                          <span>Checked Out</span>
-                        </span>
+                        getStatusBadge(item.invoiceStatus!)
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right text-xs">
+                    <td className="px-6 py-4 text-right text-xs relative">
                       <div className="flex items-center justify-end gap-2.5">
                         {item.type === 'Active' ? (
                           <button
@@ -591,34 +313,65 @@ export default function BillingInvoicesView({
                             <span>Create Invoice</span>
                           </button>
                         ) : (() => {
-                          const invId = item.id.replace('STAY-ARCH-', '');
-                          const matchInvoice = invoices.find(inv => inv.id === invId);
+                          const matchInvoice = invoices.find(inv => inv.id === item.invoiceId);
                           return (
-                            <div className="flex items-center gap-1.5 justify-end">
-                              {matchInvoice && (
-                                <button
-                                  type="button"
-                                  onClick={() => onViewInvoice(matchInvoice)}
-                                  className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-white rounded-lg border border-indigo-500/25 transition-all cursor-pointer"
-                                  title="View Live Invoice"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => onCreateInvoice({
-                                  roomId: item.roomNumber,
-                                  guestName: item.guestName,
-                                  checkInDate: item.checkIn,
-                                  checkOutDate: item.checkOut,
-                                })}
-                                className="px-2 py-1.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white text-xs font-medium rounded-lg border border-white/10 transition-all cursor-pointer"
-                                title="Create another invoice"
+                            <>
+                              <button 
+                                onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                                className="p-1.5 hover:bg-white/10 border border-transparent hover:border-white/5 rounded-lg transition-all text-white/40 hover:text-white cursor-pointer"
                               >
-                                Create Invoice
+                                <MoreVertical className="h-4.5 w-4.5" />
                               </button>
-                            </div>
+
+                              {/* Popover Action Menu */}
+                              {activeActionMenuId === item.id && matchInvoice && (
+                                <>
+                                  <div 
+                                    className="fixed inset-0 z-10" 
+                                    onClick={() => setActiveActionMenuId(null)}
+                                  />
+                                  <div 
+                                    className="absolute right-6 mt-1 w-48 bg-[#12121e]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-xl z-20 py-1 text-left"
+                                    onMouseLeave={() => setActiveActionMenuId(null)}
+                                  >
+                                    <button
+                                      onClick={() => {
+                                        onViewInvoice(matchInvoice);
+                                        setActiveActionMenuId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 text-xs text-white/75 hover:bg-white/10 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
+                                    >
+                                      <Eye className="h-4 w-4 text-white/40" />
+                                      <span>View / Print Invoice</span>
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        onUpdateInvoiceStatus(matchInvoice.id, matchInvoice.status === 'Paid' ? 'Unpaid' : 'Paid');
+                                        setActiveActionMenuId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 text-xs text-white/75 hover:bg-white/10 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
+                                    >
+                                      <CreditCard className="h-4 w-4 text-white/40" />
+                                      <span>Mark as {matchInvoice.status === 'Paid' ? 'Unpaid' : 'Paid'}</span>
+                                    </button>
+
+                                    <div className="border-t border-white/10 my-1"></div>
+
+                                    <button
+                                      onClick={() => {
+                                        onDeleteInvoice(matchInvoice.id);
+                                        setActiveActionMenuId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 text-xs text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 font-medium transition-colors cursor-pointer"
+                                    >
+                                      <Trash className="h-4 w-4 text-rose-400/80" />
+                                      <span>Delete Record</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </>
                           );
                         })()}
                       </div>
@@ -676,8 +429,6 @@ export default function BillingInvoicesView({
             </div>
           </div>
         </section>
-      )}
-
-    </div>
+      </div>
   );
 }

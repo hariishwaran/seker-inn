@@ -14,29 +14,10 @@ import RoomDrawer from './components/RoomDrawer';
 import BillingInvoicesView from './components/BillingInvoicesView';
 import NewInvoiceFormView from './components/NewInvoiceFormView';
 import PrintableInvoiceModal from './components/PrintableInvoiceModal';
-import { Settings, Save, HelpCircle, Building, AlertCircle, ExternalLink, Key } from 'lucide-react';
+import { Settings, Save, HelpCircle, Building, AlertCircle, ExternalLink, Key, X } from 'lucide-react';
 
-// Real backend imports (Firebase Auth and Firestore)
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup
-} from 'firebase/auth';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  setDoc, 
-  doc, 
-  deleteDoc, 
-  updateDoc, 
-  getDocFromServer
-} from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from './lib/firebase.ts';
+// Real backend imports (Supabase Auth and Postgres)
+import { supabase, OperationType } from './lib/supabase';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   address: 'Flat No.: 3, LAKSHMIMANAGARAM MIDDLE STREET, Arumuganeri, Thoothukudi, Tamil Nadu - 628202',
@@ -60,6 +41,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthChecked, setIsAuthChecked] = useState<boolean>(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // Persistence state Core
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -83,129 +65,133 @@ export default function App() {
 
   // Sync to database on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       setIsAuthChecked(true);
-      if (user) {
+      if (session?.user) {
         setIsLoggedIn(true);
-        setUserEmail(user.email || '');
+        setUserEmail(session.user.email || '');
+        const userId = session.user.id;
         
-        // Validate connection to Firestore
-        try {
-          await getDocFromServer(doc(db, 'test', 'connection'));
-        } catch (error) {
-          if (error instanceof Error && error.message.includes('the client is offline')) {
-            console.error("Please check your Firebase configuration.");
-          }
-        }
-
         // Sync Rooms Collection
-        const roomsQuery = query(collection(db, 'rooms'), where('userId', '==', user.uid));
-        const unsubscribeRooms = onSnapshot(roomsQuery, async (snapshot) => {
-          const fetchedRooms: Room[] = [];
-          snapshot.forEach((docSnap) => {
-            const raw = docSnap.data();
-            const { userId, ...roomData } = raw;
-            fetchedRooms.push(roomData as Room);
-          });
+        const fetchRooms = async () => {
+          try {
+            const { data: fetchedRooms, error } = await supabase
+              .from('rooms')
+              .select('*')
+              .eq('user_id', userId);
 
-          if (fetchedRooms.length === 0) {
-            // Seed base rooms on-the-fly for newly authenticated profile
-            try {
-              for (const room of initialRooms) {
-                await setDoc(doc(db, 'rooms', room.id), { ...room, userId: user.uid });
-              }
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, 'rooms');
-            }
-          } else {
-            // If any old dummy guest detail exists in rooms, auto-clean them to pristine vacant state
-            const hasDummyGuest = fetchedRooms.some(r => 
-              r.guestName === "Anita Sharma" || 
-              r.guestName === "Arun Nair" || 
-              r.guestName === "Sanya Gupta"
-            );
-            if (hasDummyGuest) {
+            if (error) throw error;
+
+            if (!fetchedRooms || fetchedRooms.length === 0) {
+              // Seed base rooms on-the-fly for newly authenticated profile
               try {
                 for (const room of initialRooms) {
-                  await setDoc(doc(db, 'rooms', room.id), { ...room, userId: user.uid });
+                  const { error: seedErr } = await supabase.from('rooms').insert({
+                    ...room,
+                    user_id: userId
+                  });
+                  if (seedErr) throw seedErr;
                 }
-              } catch (err) {
-                console.error("Auto rooms clean-up error:", err);
+                setDbError(null);
+                
+                // Re-fetch after seeding
+                const { data: reFetched } = await supabase.from('rooms').select('*').eq('user_id', userId);
+                if (reFetched) setRooms(reFetched as Room[]);
+              } catch (err: any) {
+                console.error("Room seeding error:", err);
+                setDbError(err.message || String(err));
               }
             } else {
-              fetchedRooms.sort((a, b) => a.id.localeCompare(b.id));
-              setRooms(fetchedRooms);
+              // Map snake_case 'user_id' back to 'userId' for the frontend or ignore if not used
+              // Sort by ID
+              const formattedRooms = fetchedRooms.map(r => {
+                const { user_id, ...rest } = r;
+                return rest as Room;
+              });
+              formattedRooms.sort((a, b) => a.id.localeCompare(b.id));
+              setRooms(formattedRooms);
+              setDbError(null);
             }
+          } catch (error: any) {
+            console.error("Rooms snapshot error:", error);
+            setDbError(error.message || String(error));
+          } finally {
+            setIsLoading(false);
           }
-          setIsLoading(false);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'rooms');
-        });
+        };
 
         // Sync Invoices Collection
-        const invoicesQuery = query(collection(db, 'invoices'), where('userId', '==', user.uid));
-        const unsubscribeInvoices = onSnapshot(invoicesQuery, async (snapshot) => {
-          const fetchedInvoices: Invoice[] = [];
-          snapshot.forEach((docSnap) => {
-            const raw = docSnap.data();
-            const { userId, ...invoiceData } = raw;
-            fetchedInvoices.push({ ...invoiceData, id: raw.id || docSnap.id } as Invoice);
-          });
-
-          // Check for dummy invoices left over from previous database versions to clean up automatically first
-          const dummyInvs = fetchedInvoices.filter(inv => 
-            inv.id === "INV-1001" || 
-            inv.id === "INV-1002" || 
-            inv.customerName === "Anita Sharma" || 
-            inv.customerName === "Sanya Gupta"
-          );
-          if (dummyInvs.length > 0) {
-            try {
-              for (const inv of dummyInvs) {
-                await deleteDoc(doc(db, 'invoices', inv.id));
-              }
-            } catch (err) {
-              console.error("Auto invoices clean-up error:", err);
+        const fetchInvoices = async () => {
+          try {
+            const { data: fetchedInvoices, error } = await supabase
+              .from('invoices')
+              .select('*')
+              .eq('user_id', userId);
+            
+            if (error) throw error;
+            
+            if (fetchedInvoices) {
+              const formattedInvoices = fetchedInvoices.map(i => {
+                const { user_id, ...rest } = i;
+                return rest as Invoice;
+              });
+              formattedInvoices.sort((a, b) => b.id.localeCompare(a.id));
+              setInvoices(formattedInvoices);
             }
+          } catch (error) {
+            console.error("Invoices fetch error:", error);
           }
-
-          const remainingInvoices = fetchedInvoices.filter(inv => 
-            inv.id !== "INV-1001" && 
-            inv.id !== "INV-1002" && 
-            inv.customerName !== "Anita Sharma" && 
-            inv.customerName !== "Sanya Gupta"
-          );
-
-          remainingInvoices.sort((a, b) => b.id.localeCompare(a.id));
-          setInvoices(remainingInvoices);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, 'invoices');
-        });
+        };
 
         // Sync Settings Document
-        const settingsRef = doc(db, 'settings', user.uid);
-        const unsubscribeSettings = onSnapshot(settingsRef, async (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as SystemSettings;
-            setSettings(data);
-          } else {
-            // Seed settings on-the-fly for newly authenticated profile
-            try {
-              await setDoc(settingsRef, DEFAULT_SETTINGS);
-              setSettings(DEFAULT_SETTINGS);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, 'settings');
-            }
-          }
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, 'settings');
-        });
+        const fetchSettings = async () => {
+          try {
+            const { data: docSnap, error } = await supabase
+              .from('settings')
+              .select('*')
+              .eq('id', 'default')
+              .eq('user_id', userId)
+              .maybeSingle();
 
-        return () => {
-          unsubscribeRooms();
-          unsubscribeInvoices();
-          unsubscribeSettings();
+            if (docSnap) {
+              const { user_id, id: _id, ...rest } = docSnap;
+              setSettings(rest as SystemSettings);
+            } else {
+              // Seed settings
+              await supabase.from('settings').insert({
+                id: 'default',
+                user_id: userId,
+                ...DEFAULT_SETTINGS
+              });
+              setSettings(DEFAULT_SETTINGS);
+            }
+          } catch (error) {
+            console.error("Settings fetch error:", error);
+          }
         };
+
+        await fetchRooms();
+        await fetchInvoices();
+        await fetchSettings();
+
+        // Optional: setup real-time channels here if needed
+        const channels = supabase.channel('custom-all-channel')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'rooms', filter: `user_id=eq.${userId}` },
+            (payload) => {
+              fetchRooms();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'invoices', filter: `user_id=eq.${userId}` },
+            (payload) => {
+              fetchInvoices();
+            }
+          )
+          .subscribe();
+
       } else {
         setIsLoggedIn(false);
         setRooms([]);
@@ -216,32 +202,35 @@ export default function App() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogin = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (err: any) {
-      console.error("Firebase Login Error:", err);
+      console.error("Supabase Login Error:", err);
       throw err;
     }
   };
 
   const handleSignUp = async (email: string, password: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
     } catch (err: any) {
-      console.error("Firebase SignUp Error:", err);
+      console.error("Supabase SignUp Error:", err);
       throw err;
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      await signInWithPopup(auth, provider);
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      if (error) throw error;
     } catch (err: any) {
       console.error("Google Sign-In Error:", err);
       throw err;
@@ -252,9 +241,11 @@ export default function App() {
     if (confirm("Are you sure you want to log out from the Manager Portal?")) {
       try {
         setIsLoading(true);
-        await signOut(auth);
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
       } catch (err) {
         console.error(err);
+      } finally {
         setIsLoading(false);
       }
     }
@@ -265,11 +256,15 @@ export default function App() {
 
   // Handles Saving a Room change from Side Drawer
   const handleSaveRoomStatus = async (updatedRoom: Room, createInvoice?: boolean) => {
-    if (!auth.currentUser) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     try {
-      const roomRef = doc(db, 'rooms', updatedRoom.id);
-      await setDoc(roomRef, { ...updatedRoom, userId: auth.currentUser.uid });
+      const { error } = await supabase.from('rooms').upsert({ ...updatedRoom, user_id: user.id });
+      if (error) throw error;
+
       setSelectedRoomId(null);
+      // Trigger a local state update immediately for snappy UI
+      setRooms(prev => prev.map(r => r.id === updatedRoom.id ? updatedRoom : r));
 
       if (createInvoice) {
         setPrefillInvoice({
@@ -281,62 +276,69 @@ export default function App() {
         });
         setActiveTab('new-invoice');
       }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `rooms/${updatedRoom.id}`);
+    } catch (error: any) {
+      console.error("Room Update Error:", error);
+      alert("Failed to update room: " + error.message);
     }
   };
 
   // Handles Adding a Custom Room
   const handleAddRoom = async (newRoom: Room) => {
-    if (!auth.currentUser) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     if (rooms.some(r => r.id === newRoom.id)) {
       alert(`Room ${newRoom.id} already exists!`);
       return;
     }
     try {
-      const roomRef = doc(db, 'rooms', newRoom.id);
-      await setDoc(roomRef, { ...newRoom, userId: auth.currentUser.uid });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `rooms/${newRoom.id}`);
+      const { error } = await supabase.from('rooms').insert({ ...newRoom, user_id: user.id });
+      if (error) throw error;
+      setRooms(prev => [...prev, newRoom].sort((a, b) => a.id.localeCompare(b.id)));
+    } catch (error: any) {
+      console.error("Add Room Error:", error);
+      alert("Failed to add room: " + error.message);
     }
   };
 
   // Handles Deleting a Room
   const handleDeleteRoom = async (roomId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     try {
-      const roomRef = doc(db, 'rooms', roomId);
-      await deleteDoc(roomRef);
+      const { error } = await supabase.from('rooms').delete().eq('id', roomId).eq('user_id', user.id);
+      if (error) throw error;
       setSelectedRoomId(null);
+      setRooms(prev => prev.filter(r => r.id !== roomId));
       alert(`Room ${roomId} was deactivated and removed from the register.`);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `rooms/${roomId}`);
+    } catch (error: any) {
+      console.error("Delete Room Error:", error);
+      alert("Failed to delete room: " + error.message);
     }
   };
 
   // Handles Database Wiping
   const handleResetDatabase = async () => {
-    if (!auth.currentUser) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     if (confirm("Are you sure you want to completely WIPE all data? This clears all invoices and resets the hotel rooms inventory to standard vacant rooms for fresh setup.")) {
       try {
         setIsLoading(true);
         // Wipe rooms
-        for (const r of rooms) {
-          await deleteDoc(doc(db, 'rooms', r.id));
-        }
+        await supabase.from('rooms').delete().eq('user_id', user.id);
         // Wipe invoices
-        for (const inv of invoices) {
-          const cleanId = inv.id.replace('#', 'INV-');
-          await deleteDoc(doc(db, 'invoices', cleanId));
-        }
+        await supabase.from('invoices').delete().eq('user_id', user.id);
 
         for (const room of initialRooms) {
-          await setDoc(doc(db, 'rooms', room.id), { ...room, userId: auth.currentUser.uid });
+          await supabase.from('rooms').insert({ ...room, user_id: user.id });
         }
         
         setSelectedRoomId(null);
         alert("Database wiped successfully! System is running fresh with standard vacant parameters.");
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, 'rooms');
+        // We could trigger a refetch here if we aren't relying entirely on local state
+        window.location.reload(); 
+      } catch (error: any) {
+        console.error("Database Wipe Error:", error);
+        alert("Failed to wipe database: " + error.message);
       } finally {
         setIsLoading(false);
       }
@@ -345,47 +347,62 @@ export default function App() {
 
   // Handles saving system configurations
   const handleSaveSettings = async (updatedSettings: SystemSettings) => {
-    if (!auth.currentUser) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     try {
-      const settingsRef = doc(db, 'settings', auth.currentUser.uid);
-      await setDoc(settingsRef, updatedSettings);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'settings');
+      const { error } = await supabase.from('settings').upsert({ ...updatedSettings, id: 'default', user_id: user.id });
+      if (error) throw error;
+      setSettings(updatedSettings);
+    } catch (error: any) {
+      console.error("Settings Update Error:", error);
+      alert("Failed to save settings: " + error.message);
     }
   };
 
   // Handles Saving a New Invoice generated from form
   const handleSaveInvoice = async (newInvoice: Invoice) => {
-    if (!auth.currentUser) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     try {
       const cleanId = newInvoice.id.replace('#', 'INV-');
-      await setDoc(doc(db, 'invoices', cleanId), { ...newInvoice, id: cleanId, userId: auth.currentUser.uid });
+      const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id });
+      if (error) throw error;
+      setInvoices(prev => [{ ...newInvoice, id: cleanId }, ...prev.filter(i => i.id !== cleanId)]);
       setActiveTab('billing');
-      setPreviewingInvoice(newInvoice);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `invoices/${newInvoice.id}`);
+      setPreviewingInvoice({ ...newInvoice, id: cleanId });
+    } catch (error: any) {
+      console.error("Invoice Save Error:", error);
+      alert("Failed to save invoice: " + error.message);
     }
   };
 
   const handleDeleteInvoice = async (invoiceId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     if (confirm(`Are you sure you want to delete Invoice ${invoiceId}? This is irreversible.`)) {
       try {
         const cleanId = invoiceId.replace('#', 'INV-');
-        await deleteDoc(doc(db, 'invoices', cleanId));
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `invoices/${invoiceId}`);
+        const { error } = await supabase.from('invoices').delete().eq('id', cleanId).eq('user_id', user.id);
+        if (error) throw error;
+        setInvoices(prev => prev.filter(i => i.id !== cleanId));
+      } catch (error: any) {
+        console.error("Invoice Delete Error:", error);
+        alert("Failed to delete invoice: " + error.message);
       }
     }
   };
 
   const handleUpdateInvoiceStatus = async (invoiceId: string, newStatus: Invoice['status']) => {
-    if (!auth.currentUser) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     try {
       const cleanId = invoiceId.replace('#', 'INV-');
-      const invRef = doc(db, 'invoices', cleanId);
-      await updateDoc(invRef, { status: newStatus });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `invoices/${invoiceId}`);
+      const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', cleanId).eq('user_id', user.id);
+      if (error) throw error;
+      setInvoices(prev => prev.map(i => i.id === cleanId ? { ...i, status: newStatus } : i));
+    } catch (error: any) {
+      console.error("Invoice Update Error:", error);
+      alert("Failed to update invoice status: " + error.message);
     }
   };
 
@@ -490,6 +507,22 @@ export default function App() {
         <div className="absolute top-1/4 right-1/4 w-[40%] h-[40%] bg-purple-600/8 rounded-full blur-[100px] rotate-45"></div>
         <div className="absolute bottom-1/4 left-1/3 w-[30%] h-[30%] bg-blue-500/15 rounded-full blur-[80px]"></div>
       </div>
+
+      {/* DB Error Banner */}
+      {dbError && (
+        <div className="absolute top-0 left-0 right-0 bg-red-500/90 text-white p-4 z-50 text-center flex items-center justify-center gap-3 shadow-lg backdrop-blur-md">
+          <AlertCircle size={20} />
+          <div>
+            <span className="font-semibold">Database Connection Error:</span> {dbError === 'PERMISSION_DENIED' ? 'Missing or insufficient permissions. Please check your Firestore Security Rules.' : dbError}
+          </div>
+          <button 
+            onClick={() => setDbError(null)} 
+            className="ml-auto p-1 hover:bg-red-600/50 rounded transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Collapsible SideNavBar */}
       <SideNavBar 
@@ -873,20 +906,20 @@ function LoginView({
         {error === 'OPERATION_NOT_ALLOWED' ? (
           <div className="bg-[#1f0f15] border border-rose-500/35 text-rose-200 rounded-2xl p-4 text-xs font-sans space-y-3 shadow-lg select-text">
             <div className="flex items-start gap-2.5">
-              <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-bold text-white tracking-tight">Email/Password Login Disabled</p>
-                <p className="text-white/70 leading-relaxed text-[11px]">
-                  The "Email/Password" provider is not yet enabled in your Firebase project console.
-                </p>
-              </div>
-            </div>
-            <div className="p-3 bg-black/40 rounded-xl space-y-1.5 border border-white/5 font-mono text-[10px] leading-relaxed text-white/50">
-              <p className="font-bold text-amber-400">QUICK SETUP FIX:</p>
-              <p>1. Open <a href="https://console.firebase.google.com/project/gen-lang-client-0719317047/authentication/providers" target="_blank" rel="noreferrer" className="text-indigo-400 underline hover:text-indigo-300 font-sans font-bold inline-flex items-center gap-0.5">Firebase Console <ExternalLink className="h-2.5 w-2.5 inline" /></a></p>
-              <p>2. Click <span className="text-white">Add new provider</span></p>
-              <p>3. Choose <span className="text-white">Email/Password</span></p>
-              <p>4. Toggle <span className="text-white">Enable</span> and click <span className="text-white">Save</span></p>
+                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 mt-6">
+                  <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="text-red-300 font-semibold mb-1">Configuration Needed</p>
+                    <p className="text-red-200/80 mb-3">
+                      The "Email/Password" provider is not yet enabled in your Supabase project console.
+                    </p>
+                    <div className="bg-[#020205]/50 p-3 rounded-lg border border-white/5 space-y-2 text-white/70 text-xs">
+                      <p>1. Open <a href="https://supabase.com/dashboard/project/_/auth/providers" target="_blank" rel="noreferrer" className="text-indigo-400 underline hover:text-indigo-300 font-sans font-bold inline-flex items-center gap-0.5">Supabase Console <ExternalLink className="h-2.5 w-2.5 inline" /></a></p>
+                      <p>2. Go to Authentication &gt; Providers</p>
+                      <p>3. Enable Email/Password authentication</p>
+                    </div>
+                  </div>
+                </div>
             </div>
             <div className="flex flex-col gap-1.5 text-center text-white/40 pt-1">
               <p className="text-[10px]">Alternatively, sign in instantly using Google below!</p>
