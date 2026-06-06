@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "Represents high-fidelity hotel room characteristics and occupancy profile.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "floor": {
+          "type": "integer"
+        },
+        "roomType": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "vacant",
+            "occupied",
+            "cleaning",
+            "maintenance"
+          ]
+        },
+        "isAC": {
+          "type": "boolean"
+        },
+        "basePrice": {
+          "type": "number"
+        },
+        "extraBedPrice": {
+          "type": "number"
+        },
+        "extraBedsCount": {
+          "type": "integer"
+        },
+        "guestName": {
+          "type": "string"
+        },
+        "guestId": {
+          "type": "string"
+        },
+        "checkInDate": {
+          "type": "string"
+        },
+        "checkOutDate": {
+          "type": "string"
+        },
+        "expectedTime": {
+          "type": "string"
+        },
+        "maintenanceIssue": {
+          "type": "string"
+        },
+        "amountDue": {
+          "type": "number"
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "floor",
+        "roomType",
+        "status",
+        "isAC",
+        "basePrice"
+      ]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "A ledger trace of client checkouts and billing invoices.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "customerName": {
+          "type": "string"
+        },
+        "customerEmail": {
+          "type": "string"
+        },
+        "customerPhone": {
+          "type": "string"
+        },
+        "roomNumber": {
+          "type": "string"
+        },
+        "roomType": {
+          "type": "string"
+        },
+        "checkInDate": {
+          "type": "string"
+        },
+        "checkOutDate": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "totalNights": {
+          "type": "integer"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "cgst": {
+          "type": "number"
+        },
+        "sgst": {
+          "type": "number"
+        },
+        "grandTotal": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Paid",
+            "Unpaid",
+            "Draft"
+          ]
+        },
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "customerName",
+        "customerEmail",
+        "roomNumber",
+        "grandTotal",
+        "status"
+      ]
+    }
+  },
+  "firestore": {
+    "rooms": {
+      "schema": "Room",
+      "description": "Individual room details including cleaning, maintenance, occupancy variables."
+    },
+    "invoices": {
+      "schema": "Invoice",
+      "description": "Check-out ledger and audit trail receipts."
+    }
+  }
+}

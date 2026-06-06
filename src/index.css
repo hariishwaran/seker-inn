@@ -1,0 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom styles for Frosted Glass design theme */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transition: all 0.2s ease-in-out;
+}
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  outline: none;
+}
+
+.glass-card-empty {
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+}
+
+/* Webkit scrollbar for perfect aesthetics */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+@media print {
+  /* Hide all main application containers except the print overlay itself */
+  #app-canvas-container > *:not(#printable-invoice-modal-overlay) {
+    display: none !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+
+  body, html {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Reset modal overlay container for complete visibility in A4 print layout */
+  #printable-invoice-modal-overlay {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: none !important;
+    background-color: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  #printable-sheet-a4 {
+    transform: none !important;
+    transform-origin: initial !important;
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    left: 0 !important;
+    top: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .print-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: relative !important;
+    display: block !important;
+  }
+}
+
+/* Custom styles for scaling on laptop viewports */
+#printable-sheet-a4 {
+  transform: scale(var(--invoice-scale, 1));
+  transform-origin: top center;
+  transition: transform 0.15s ease-out;
+}
+
+/* Beautiful custom room card scaling, glow, and transitions */
+div[id^="room-card-"] {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+              background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+div[id^="room-card-"]:hover {
+  transform: scale(1.04) translateY(-2px) !important;
+  border-color: rgba(99, 102, 241, 0.45) !important;
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 
+              0 0 22px 2px rgba(99, 102, 241, 0.3), 
+              0 0 5px 1px rgba(99, 102, 241, 0.15) !important;
+}
+
+/* Subtle color-coded status pulse animations */
+@keyframes pulse-vacant-shadow {
+  0%, 100% {
+    border-color: rgba(16, 185, 129, 0.15);
+    box-shadow: 0 4px 18px -4px rgba(0, 0, 0, 0.4), 0 0 0px 0px rgba(16, 185, 129, 0);
+  }
+  50% {
+    border-color: rgba(16, 185, 129, 0.35);
+    box-shadow: 0 4px 24px -2px rgba(16, 185, 129, 0.15), 0 0 8px 1px rgba(16, 185, 129, 0.12);
+  }
+}
+
+@keyframes pulse-occupied-shadow {
+  0%, 100% {
+    border-color: rgba(239, 68, 68, 0.15);
+    box-shadow: 0 4px 18px -4px rgba(0, 0, 0, 0.4), 0 0 0px 0px rgba(239, 68, 68, 0);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.35);
+    box-shadow: 0 4px 24px -2px rgba(239, 68, 68, 0.15), 0 0 8px 1px rgba(239, 68, 68, 0.12);
+  }
+}
+
+@keyframes pulse-cleaning-shadow {
+  0%, 100% {
+    border-color: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 4px 18px -4px rgba(0, 0, 0, 0.4), 0 0 0px 0px rgba(59, 130, 246, 0);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.35);
+    box-shadow: 0 4px 24px -2px rgba(59, 130, 246, 0.12), 0 0 8px 1px rgba(59, 130, 246, 0.1);
+  }
+}
+
+@keyframes pulse-maintenance-shadow {
+  0%, 100% {
+    border-color: rgba(245, 158, 11, 0.15);
+    box-shadow: 0 4px 18px -4px rgba(0, 0, 0, 0.4), 0 0 0px 0px rgba(245, 158, 11, 0);
+  }
+  50% {
+    border-color: rgba(245, 158, 11, 0.35);
+    box-shadow: 0 4px 24px -2px rgba(245, 158, 11, 0.15), 0 0 8px 1px rgba(245, 158, 11, 0.12);
+  }
+}
+
+.pulse-vacant {
+  animation: pulse-vacant-shadow 3s ease-in-out infinite !important;
+}
+
+.pulse-occupied {
+  animation: pulse-occupied-shadow 3s ease-in-out infinite !important;
+}
+
+.pulse-cleaning {
+  animation: pulse-cleaning-shadow 3s ease-in-out infinite !important;
+}
+
+.pulse-maintenance {
+  animation: pulse-maintenance-shadow 3s ease-in-out infinite !important;
+}
+
