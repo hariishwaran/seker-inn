@@ -57,8 +57,9 @@ export default function App() {
   
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [userEmail, setUserEmail] = useState<string>('waranhariish@gmail.com');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAuthChecked, setIsAuthChecked] = useState<boolean>(false);
 
   // Persistence state Core
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -83,9 +84,10 @@ export default function App() {
   // Sync to database on mount
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setIsAuthChecked(true);
       if (user) {
         setIsLoggedIn(true);
-        setUserEmail(user.email || 'waranhariish@gmail.com');
+        setUserEmail(user.email || '');
         
         // Validate connection to Firestore
         try {
@@ -210,41 +212,38 @@ export default function App() {
         setInvoices([]);
         setSettings(DEFAULT_SETTINGS);
         setIsLoading(false);
+        setIsAuthChecked(true);
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = async (email: string) => {
+  const handleLogin = async (email: string, password: string) => {
     try {
-      setIsLoading(true);
-      const password = "1234_sekarinn";
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch (err: any) {
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-          await createUserWithEmailAndPassword(auth, email, password);
-        } else {
-          throw err;
-        }
-      }
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
       console.error("Firebase Login Error:", err);
-      setIsLoading(false);
+      throw err;
+    }
+  };
+
+  const handleSignUp = async (email: string, password: string) => {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      console.error("Firebase SignUp Error:", err);
       throw err;
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
-      setIsLoading(true);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
     } catch (err: any) {
       console.error("Google Sign-In Error:", err);
-      setIsLoading(false);
       throw err;
     }
   };
@@ -460,7 +459,7 @@ export default function App() {
     }
   };
 
-  if (isLoading) {
+  if (!isAuthChecked) {
     return (
       <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center font-sans overflow-hidden">
         <div className="flex flex-col items-center gap-4">
@@ -471,7 +470,14 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return <LoginView onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} userEmail={userEmail} />;
+    return (
+      <LoginView 
+        onLogin={handleLogin} 
+        onSignUp={handleSignUp}
+        onGoogleLogin={handleGoogleLogin} 
+        userEmail={userEmail} 
+      />
+    );
   }
 
   return (
@@ -745,18 +751,22 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
   );
 }
 
-// Simple dynamic hotel pin authenticator form
+// Simple dynamic hotel authentication form
 function LoginView({ 
   onLogin, 
+  onSignUp,
   onGoogleLogin, 
   userEmail 
 }: { 
-  onLogin: (email: string) => Promise<void>; 
+  onLogin: (email: string, password: string) => Promise<void>; 
+  onSignUp: (email: string, password: string) => Promise<void>; 
   onGoogleLogin: () => Promise<void>; 
   userEmail: string; 
 }) {
-  const [email, setEmail] = useState(userEmail || 'waranhariish@gmail.com');
-  const [pin, setPin] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [activeAuthTab, setActiveAuthTab] = useState<'login' | 'signup'>('login');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
@@ -767,23 +777,45 @@ function LoginView({
       setError('Please specify a valid account email.');
       return;
     }
-    if (pin === '1234') {
-      setIsSubmitting(true);
-      setError('');
-      try {
-        await onLogin(email);
-      } catch (err: any) {
-        const msg = err.message || '';
-        if (msg.includes('auth/operation-not-allowed')) {
-          setError('OPERATION_NOT_ALLOWED');
-        } else {
-          setError(msg || 'An error occurred during authentication.');
-        }
-      } finally {
-        setIsSubmitting(false);
+    if (!password) {
+      setError('Please specify a password.');
+      return;
+    }
+    if (activeAuthTab === 'signup' && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (activeAuthTab === 'signup' && password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+    try {
+      if (activeAuthTab === 'login') {
+        await onLogin(email, password);
+      } else {
+        await onSignUp(email, password);
       }
-    } else {
-      setError('Invalid Access Passcode (Standard PIN is 1234).');
+    } catch (err: any) {
+      const msg = err.message || '';
+      console.error(err);
+      if (msg.includes('auth/operation-not-allowed')) {
+        setError('OPERATION_NOT_ALLOWED');
+      } else if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('auth/user-not-found')) {
+        setError('Invalid email or password.');
+      } else if (msg.includes('auth/email-already-in-use')) {
+        setError('This email is already registered. Try logging in instead.');
+      } else if (msg.includes('auth/weak-password')) {
+        setError('The password is too weak. Please choose a stronger password.');
+      } else if (msg.includes('auth/invalid-email')) {
+        setError('Please enter a valid email address.');
+      } else {
+        setError(msg || 'An error occurred during authentication.');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -809,7 +841,7 @@ function LoginView({
         <div className="absolute bottom-1/4 right-1/4 w-[45%] h-[45%] bg-emerald-500/10 rounded-full blur-[130px]"></div>
       </div>
 
-      <div className="glass-panel max-w-sm w-full p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10 space-y-6">
+      <div className="glass-panel max-w-sm w-full p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10 space-y-5">
         <div className="text-center space-y-2">
           <div className="flex justify-center flex-col items-center gap-3">
             <div className="bg-[#0f1646] p-3.5 rounded-2xl border border-white/10 flex items-center justify-center text-white h-14 w-14">
@@ -818,6 +850,24 @@ function LoginView({
             <h1 className="text-2xl font-black text-white tracking-tight font-display">Sekar Inn</h1>
           </div>
           <p className="text-xs text-white/50">Desk Management System Authentication Terminal</p>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 relative z-10 select-none">
+          <button
+            type="button"
+            onClick={() => { setActiveAuthTab('login'); setError(''); setPassword(''); setConfirmPassword(''); }}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeAuthTab === 'login' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/10' : 'text-white/40 hover:text-white/70'}`}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveAuthTab('signup'); setError(''); setPassword(''); setConfirmPassword(''); }}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeAuthTab === 'signup' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/10' : 'text-white/40 hover:text-white/70'}`}
+          >
+            Sign Up
+          </button>
         </div>
 
         {error === 'OPERATION_NOT_ALLOWED' ? (
@@ -866,24 +916,37 @@ function LoginView({
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 placeholder="e.g. manager@sekarinn.com"
-                className="w-full border border-white/10 bg-white/5 text-white placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                className="w-full border border-white/10 bg-white/5 text-white placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-sans font-semibold"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Access Passcode (PIN)</label>
+              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Password</label>
               <input 
                 type="password"
                 required
                 disabled={isSubmitting || isGoogleSubmitting}
-                value={pin}
-                onChange={(e) => { setPin(e.target.value); setError(''); }}
-                placeholder="••••"
-                maxLength={4}
-                className="w-full border border-white/10 bg-white/5 text-slate-100 placeholder-white/20 rounded-xl p-3 text-sm text-center tracking-widest font-mono font-black focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                placeholder="••••••••"
+                className="w-full border border-white/10 bg-white/5 text-slate-100 placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-mono font-bold"
               />
-              <p className="text-[10px] text-white/30 text-right mt-1 italic">Demo PIN: 1234</p>
             </div>
+
+            {activeAuthTab === 'signup' && (
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Confirm Password</label>
+                <input 
+                  type="password"
+                  required
+                  disabled={isSubmitting || isGoogleSubmitting}
+                  value={confirmPassword}
+                  onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
+                  placeholder="••••••••"
+                  className="w-full border border-white/10 bg-white/5 text-slate-100 placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-mono font-bold"
+                />
+              </div>
+            )}
 
             <button
               type="submit"
@@ -893,35 +956,12 @@ function LoginView({
               {isSubmitting && (
                 <div className="w-4 h-4 rounded-full border-2 border-t-white border-white/10 animate-spin"></div>
               )}
-              Authenticate Profile &amp; Login
+              {activeAuthTab === 'login' ? 'Authenticate Profile & Login' : 'Register & Create Account'}
             </button>
           </form>
         )}
 
-        <div className="relative flex py-1 items-center justify-center">
-          <div className="flex-grow border-t border-white/10"></div>
-          <span className="flex-shrink mx-4 text-[10px] font-bold text-white/30 uppercase tracking-widest bg-[#020205] px-2 select-none">or</span>
-          <div className="flex-grow border-t border-white/10"></div>
-        </div>
 
-        <button
-          type="button"
-          disabled={isSubmitting || isGoogleSubmitting}
-          onClick={handleGoogleClick}
-          className="w-full py-3 border border-white/15 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold tracking-wide shadow-lg transition-all select-none cursor-pointer active:scale-95 text-sm flex items-center justify-center gap-2.5 disabled:opacity-50"
-        >
-          {isGoogleSubmitting ? (
-            <div className="w-4 h-4 rounded-full border-2 border-t-white border-white/10 animate-spin"></div>
-          ) : (
-            <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-          )}
-          Sign in with Google Account
-        </button>
 
         <div className="text-center text-[10px] text-white/30 pt-4 border-t border-white/5 select-none">
           Sekar Inn Hospitality Ltd. Secure Ledger Gateway &copy; 2026
