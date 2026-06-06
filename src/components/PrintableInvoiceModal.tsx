@@ -5,11 +5,12 @@
 
 import { useState, useEffect, CSSProperties } from 'react';
 import { X, Printer, Building2, ShieldCheck } from 'lucide-react';
-import { Invoice } from '../types';
+import { Invoice, SystemSettings } from '../types';
 
 interface PrintableInvoiceModalProps {
   invoice: Invoice | null;
   onClose: () => void;
+  settings: SystemSettings;
 }
 
 // Quick numbers-to-words converter for dynamic indian rupee bills
@@ -127,7 +128,7 @@ const getAdvancePaid = (invoice: Invoice) => {
   return match ? parseFloat(match[1]) : 0;
 };
 
-export default function PrintableInvoiceModal({ invoice, onClose }: PrintableInvoiceModalProps) {
+export default function PrintableInvoiceModal({ invoice, onClose, settings }: PrintableInvoiceModalProps) {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
@@ -151,8 +152,8 @@ export default function PrintableInvoiceModal({ invoice, onClose }: PrintableInv
     window.print();
   };
 
-  const cgstRate = invoice.subtotal > 0 ? ((invoice.cgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : '2.5';
-  const sgstRate = invoice.subtotal > 0 ? ((invoice.sgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : '2.5';
+  const cgstRate = invoice.subtotal > 0 ? ((invoice.cgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.cgstPercentage.toString();
+  const sgstRate = invoice.subtotal > 0 ? ((invoice.sgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.sgstPercentage.toString();
 
   return (
     <div 
@@ -198,11 +199,20 @@ export default function PrintableInvoiceModal({ invoice, onClose }: PrintableInv
             SEKAR INN
           </h1>
           <div className="text-xs md:text-sm text-slate-800 space-y-0.5 font-medium leading-relaxed">
-            <p>Flat No.: 3</p>
-            <p className="uppercase font-semibold">LAKSHMIMANAGARAM MIDDLE STREET</p>
-            <p>Arumuganeri</p>
-            <p>Thoothukudi | Tamil Nadu | 628202</p>
-            <p className="font-bold text-black pt-1">GSTIN: 33KKRPS8566Q1ZK</p>
+            {settings.address ? (
+              settings.address.split(',').map((part, index) => (
+                <p key={index} className={index === 1 ? "uppercase font-semibold" : ""}>{part.trim()}</p>
+              ))
+            ) : (
+              <>
+                <p>Flat No.: 3</p>
+                <p className="uppercase font-semibold">LAKSHMIMANAGARAM MIDDLE STREET</p>
+                <p>Arumuganeri</p>
+                <p>Thoothukudi | Tamil Nadu | 628202</p>
+              </>
+            )}
+            {settings.phone && <p>Phone: {settings.phone}</p>}
+            <p className="font-bold text-black pt-1">GSTIN: {settings.gstin || '33KKRPS8566Q1ZK'}</p>
           </div>
           
           <h2 className="text-base md:text-lg font-bold text-black mt-6">

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Invoice, InvoiceLineItem, Room } from '../types';
+import { Invoice, InvoiceLineItem, Room, SystemSettings } from '../types';
 import { User, Bed, PlusCircle, Trash, Printer, FileDown, Plus, Minus } from 'lucide-react';
 
 export interface PrefillInvoiceData {
@@ -20,6 +20,7 @@ interface NewInvoiceFormViewProps {
   onSaveInvoice: (newInvoice: Invoice) => void;
   onCancel: () => void;
   prefillData?: PrefillInvoiceData | null;
+  settings: SystemSettings;
 }
 
 const DEFAULT_ITEMS_CATALOG = [
@@ -29,7 +30,7 @@ const DEFAULT_ITEMS_CATALOG = [
   { label: 'Spa & Wellness', defaultPrice: 2200 },
 ];
 
-export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, prefillData }: NewInvoiceFormViewProps) {
+export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, prefillData, settings }: NewInvoiceFormViewProps) {
   // Guest Details state
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -208,8 +209,8 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
 
   // Calculations
   const subtotal = lineItems.reduce((acc, curr) => acc + curr.total, 0);
-  const cgst = subtotal * 0.09; // 9% tax
-  const sgst = subtotal * 0.09; // 9% tax
+  const cgst = subtotal * (settings.cgstPercentage / 100);
+  const sgst = subtotal * (settings.sgstPercentage / 100);
   const grandTotal = subtotal + cgst + sgst;
 
   const handleSubmitForm = (status: Invoice['status']) => {
@@ -507,12 +508,12 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
             </div>
             
             <div className="flex justify-between items-center text-sm text-white/60 font-medium">
-              <span>CGST (9%)</span>
+              <span>CGST ({settings.cgstPercentage}%)</span>
               <span className="font-bold text-white font-mono">₹{cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
-
+            
             <div className="flex justify-between items-center text-sm text-white/60 font-medium pb-4 border-b border-white/10">
-              <span>SGST (9%)</span>
+              <span>SGST ({settings.sgstPercentage}%)</span>
               <span className="font-bold text-white font-mono">₹{sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
 

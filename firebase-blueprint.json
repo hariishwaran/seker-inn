@@ -139,6 +139,19 @@
         "grandTotal",
         "status"
       ]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Represents branch configuration, billing details, and tax properties.",
+      "type": "object",
+      "properties": {
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "gstin": { "type": "string" },
+        "cgstPercentage": { "type": "number" },
+        "sgstPercentage": { "type": "number" }
+      },
+      "required": ["address", "phone", "gstin", "cgstPercentage", "sgstPercentage"]
     }
   },
   "firestore": {
@@ -149,6 +162,10 @@
     "invoices": {
       "schema": "Invoice",
       "description": "Check-out ledger and audit trail receipts."
+    },
+    "settings": {
+      "schema": "SystemSettings",
+      "description": "Branch-specific configurations, including company details and tax rates."
     }
   }
 }

@@ -50,3 +50,11 @@ export interface Invoice {
   grandTotal: number;
   status: 'Paid' | 'Unpaid' | 'Draft';
 }
+
+export interface SystemSettings {
+  address: string;
+  phone: string;
+  gstin: string;
+  cgstPercentage: number;
+  sgstPercentage: number;
+}

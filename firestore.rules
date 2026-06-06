@@ -58,5 +58,10 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // Match settings collection
+    match /settings/{userId} {
+      allow read, write: if isSignedIn() && userId == request.auth.uid;
+    }
   }
 }

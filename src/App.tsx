@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, FormEvent } from 'react';
-import { Room, Invoice } from './types';
+import { Room, Invoice, SystemSettings } from './types';
 import { initialRooms, initialInvoices } from './data';
 import SideNavBar from './components/SideNavBar';
 import TopNavBar from './components/TopNavBar';
@@ -38,6 +38,14 @@ import {
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase.ts';
 
+const DEFAULT_SETTINGS: SystemSettings = {
+  address: 'Flat No.: 3, LAKSHMIMANAGARAM MIDDLE STREET, Arumuganeri, Thoothukudi, Tamil Nadu - 628202',
+  phone: '+91 86670 92950',
+  gstin: '33KKRPS8566Q1ZK',
+  cgstPercentage: 9,
+  sgstPercentage: 9
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('rooms');
 
@@ -56,6 +64,9 @@ export default function App() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   
+  // System Settings State
+  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
+
   // Overlay indicators
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [previewingInvoice, setPreviewingInvoice] = useState<Invoice | null>(null);
@@ -169,14 +180,35 @@ export default function App() {
           handleFirestoreError(error, OperationType.LIST, 'invoices');
         });
 
+        // Sync Settings Document
+        const settingsRef = doc(db, 'settings', user.uid);
+        const unsubscribeSettings = onSnapshot(settingsRef, async (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as SystemSettings;
+            setSettings(data);
+          } else {
+            // Seed settings on-the-fly for newly authenticated profile
+            try {
+              await setDoc(settingsRef, DEFAULT_SETTINGS);
+              setSettings(DEFAULT_SETTINGS);
+            } catch (err) {
+              handleFirestoreError(err, OperationType.WRITE, 'settings');
+            }
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'settings');
+        });
+
         return () => {
           unsubscribeRooms();
           unsubscribeInvoices();
+          unsubscribeSettings();
         };
       } else {
         setIsLoggedIn(false);
         setRooms([]);
         setInvoices([]);
+        setSettings(DEFAULT_SETTINGS);
         setIsLoading(false);
       }
     });
@@ -312,6 +344,17 @@ export default function App() {
     }
   };
 
+  // Handles saving system configurations
+  const handleSaveSettings = async (updatedSettings: SystemSettings) => {
+    if (!auth.currentUser) return;
+    try {
+      const settingsRef = doc(db, 'settings', auth.currentUser.uid);
+      await setDoc(settingsRef, updatedSettings);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'settings');
+    }
+  };
+
   // Handles Saving a New Invoice generated from form
   const handleSaveInvoice = async (newInvoice: Invoice) => {
     if (!auth.currentUser) return;
@@ -392,6 +435,7 @@ export default function App() {
               setActiveTab('billing');
             }}
             prefillData={prefillInvoice}
+            settings={settings}
           />
         );
       case 'settings':
@@ -400,6 +444,8 @@ export default function App() {
             onResetDatabase={handleResetDatabase}
             roomsCount={rooms.length}
             invoicesCount={invoices.length}
+            settings={settings}
+            onSaveSettings={handleSaveSettings}
           />
         );
       default:
@@ -486,6 +532,7 @@ export default function App() {
         <PrintableInvoiceModal 
           invoice={previewingInvoice}
           onClose={() => setPreviewingInvoice(null)}
+          settings={settings}
         />
       )}
 
@@ -498,15 +545,52 @@ interface SettingsViewProps {
   onResetDatabase: () => void;
   roomsCount: number;
   invoicesCount: number;
+  settings: SystemSettings;
+  onSaveSettings: (settings: SystemSettings) => Promise<void>;
 }
 
-function SettingsView({ onResetDatabase, roomsCount, invoicesCount }: SettingsViewProps) {
-  const [address, setAddress] = useState('12/4A, MG Road, Indira Nagar, Chennai, Tamil Nadu - 600020');
-  const [gstin, setGstin] = useState('33AAAAA0000A1Z5');
-  const [phone, setPhone] = useState('+91 44 2345 6789');
+function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, onSaveSettings }: SettingsViewProps) {
+  const [address, setAddress] = useState(settings.address);
+  const [gstin, setGstin] = useState(settings.gstin);
+  const [phone, setPhone] = useState(settings.phone);
+  const [cgstPercentage, setCgstPercentage] = useState(settings.cgstPercentage.toString());
+  const [sgstPercentage, setSgstPercentage] = useState(settings.sgstPercentage.toString());
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setAddress(settings.address);
+    setGstin(settings.gstin);
+    setPhone(settings.phone);
+    setCgstPercentage(settings.cgstPercentage.toString());
+    setSgstPercentage(settings.sgstPercentage.toString());
+  }, [settings]);
   
-  const handleSaveSettings = () => {
-    alert("Configurations saved successfully! Changes are applied.");
+  const handleSaveSettings = async () => {
+    const cgst = parseFloat(cgstPercentage);
+    const sgst = parseFloat(sgstPercentage);
+    if (isNaN(cgst) || cgst < 0 || cgst > 100) {
+      alert("Please enter a valid CGST percentage between 0 and 100.");
+      return;
+    }
+    if (isNaN(sgst) || sgst < 0 || sgst > 100) {
+      alert("Please enter a valid SGST percentage between 0 and 100.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onSaveSettings({
+        address,
+        phone,
+        gstin,
+        cgstPercentage: cgst,
+        sgstPercentage: sgst
+      });
+      alert("Configurations saved successfully! Changes are applied.");
+    } catch (error) {
+      // error handled in helper
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -556,15 +640,47 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount }: SettingsVi
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">CGST Rate (%)</label>
+                <input 
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100" 
+                  value={cgstPercentage}
+                  onChange={(e) => setCgstPercentage(e.target.value)}
+                  className="w-full glass-input rounded-xl p-3 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">SGST Rate (%)</label>
+                <input 
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100" 
+                  value={sgstPercentage}
+                  onChange={(e) => setSgstPercentage(e.target.value)}
+                  className="w-full glass-input rounded-xl p-3 text-sm font-mono"
+                />
+              </div>
+            </div>
           </div>
 
           <button 
             type="button"
+            disabled={isSaving}
             onClick={handleSaveSettings}
-            className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:opacity-90 font-semibold rounded-xl text-sm flex items-center gap-2 mt-2 transition-all cursor-pointer shadow-lg shadow-indigo-500/20 active:scale-95"
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:opacity-90 font-semibold rounded-xl text-sm flex items-center gap-2 mt-2 transition-all cursor-pointer shadow-lg shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
           >
-            <Save className="h-4 w-4" />
-            <span>Save Settings</span>
+            {isSaving ? (
+              <div className="w-4 h-4 rounded-full border-2 border-t-white border-white/10 animate-spin"></div>
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>
           </button>
         </div>
 
@@ -583,7 +699,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount }: SettingsVi
 
           <div className="bg-white/5 border border-white/5 p-4 rounded-xl flex items-start gap-2.5 text-xs text-white/70">
             <HelpCircle className="h-5 w-5 text-indigo-400 flex-shrink-0 mt-0.5" />
-            <span>Tax properties are set to standard Indian GST (9% CGST + 9% SGST).</span>
+            <span>Tax properties are set to standard Indian GST ({settings.cgstPercentage}% CGST + {settings.sgstPercentage}% SGST).</span>
           </div>
         </div>
 
