@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Invoice, InvoiceLineItem, Room, SystemSettings } from '../types';
 import { User, Bed, PlusCircle, Trash, Printer, FileDown, Plus, Minus } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface PrefillInvoiceData {
   roomId?: string;
@@ -39,8 +40,8 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
   // Stay Details state
   const [selectedRoomId, setSelectedRoomId] = useState('');
   const [roomType, setRoomType] = useState('Triple Room (AC)');
-  const [checkInDate, setCheckInDate] = useState('2026-06-03');
-  const [checkOutDate, setCheckOutDate] = useState('2026-06-05');
+  const [checkInDate, setCheckInDate] = useState('');
+  const [checkOutDate, setCheckOutDate] = useState('');
 
   // Extra Bed Selection State
   const [hasExtraBed, setHasExtraBed] = useState(false);
@@ -210,20 +211,35 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
   // Calculations
   const subtotal = lineItems.reduce((acc, curr) => acc + curr.total, 0);
   const cgst = subtotal * (settings.cgstPercentage / 100);
-  const sgst = subtotal * (settings.sgstPercentage / 100);
+  const sgst = subtotal * (settings.sgstpercentage / 100);
   const grandTotal = subtotal + cgst + sgst;
 
   const handleSubmitForm = (status: Invoice['status']) => {
     if (!customerName) {
-      alert('Please fill out the guest name.');
+      toast.error('Please fill out the guest name.');
+      return;
+    }
+
+    if (!checkInDate || !checkOutDate) {
+      toast.error('Please provide both check-in and check-out dates.');
+      return;
+    }
+
+    if (new Date(checkOutDate) <= new Date(checkInDate)) {
+      toast.error('Check-out date must be after check-in date.');
+      return;
+    }
+
+    if (!selectedRoomId) {
+      toast.error('Please select a room.');
       return;
     }
 
     const newInvoiceRecord: Invoice = {
       id: `#INV-${Math.floor(10000 + Math.random() * 90000)}`,
       customerName,
-      customerPhone: customerPhone || '+91 98765 43210',
-      customerEmail: customerEmail || 'guest@example.com',
+      customerPhone: customerPhone || '',
+      customerEmail: customerEmail || '',
       roomNumber: selectedRoomId || '101',
       roomType,
       checkInDate,
@@ -513,7 +529,7 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
             </div>
             
             <div className="flex justify-between items-center text-sm text-white/60 font-medium pb-4 border-b border-white/10">
-              <span>SGST ({settings.sgstPercentage}%)</span>
+              <span>SGST ({settings.sgstpercentage}%)</span>
               <span className="font-bold text-white font-mono">₹{sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
 

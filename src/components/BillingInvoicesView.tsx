@@ -44,9 +44,10 @@ export default function BillingInvoicesView({
   const itemsPerPage = 8;
 
   // Compile unified Booking / Stay entries for history Tab
-  // 1. Live stays (currently occupied rooms)
+  // 1. Current Active stays from rooms database
   const activeStays = rooms
-    .filter(r => r.status === 'occupied' && r.guestName)
+    .filter(r => r.status === 'occupied' || r.status === 'booked' || r.status === 'cleaning' || r.status === 'maintenance')
+    .filter(r => !invoices.some(inv => inv.roomNumber === r.id && inv.customerName && r.guestName && inv.customerName === r.guestName))
     .map(r => ({
       type: 'Active' as const,
       id: `STAY-LIVE-${r.id}`,
@@ -217,19 +218,19 @@ export default function BillingInvoicesView({
             </div>
           </div>
 
-          {/* Records Table */}
-          <div className="overflow-x-auto overflow-y-visible min-h-[260px]">
+          {/* Records Table - Desktop (lg+) */}
+          <div className="hidden lg:block overflow-x-auto overflow-y-visible min-h-[260px]">
             <table className="w-full text-left border-collapse" id="history-table">
               <thead>
                 <tr className="bg-white/5 text-xs font-bold text-white/40 uppercase tracking-widest border-b border-white/5">
-                  <th className="px-6 py-4">Guest Profile</th>
-                  <th className="px-6 py-4">Allocated Room</th>
-                  <th className="px-6 py-4">Check-In</th>
-                  <th className="px-6 py-4">Check-Out</th>
-                  <th className="px-6 py-4">Stay Length</th>
-                  <th className="px-6 py-4">Billing Charge</th>
-                  <th className="px-6 py-4">State Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Guest Profile</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Allocated Room</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Check-In</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Check-Out</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Stay Length</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Billing Charge</th>
+                  <th className="px-6 py-4 whitespace-nowrap">State Status</th>
+                  <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -238,7 +239,7 @@ export default function BillingInvoicesView({
                     key={item.id}
                     className="hover:bg-white/5 transition-all duration-150"
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border font-display ${
                           item.type === 'Active' 
@@ -253,9 +254,9 @@ export default function BillingInvoicesView({
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-white/5 font-mono text-xs font-bold text-white bg-indigo-500/15 border border-indigo-500/20 px-2 py-1 flex items-center">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <span className="rounded-lg bg-indigo-500/15 border border-indigo-500/20 px-2 py-1 font-mono text-xs font-bold text-white shadow-sm flex-shrink-0">
                           {item.roomNumber}
                         </span>
                         <div>
@@ -268,23 +269,23 @@ export default function BillingInvoicesView({
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-xs font-mono text-white/60">
+                    <td className="px-6 py-4 text-xs font-mono text-white/60 whitespace-nowrap">
                       {item.checkIn}
                     </td>
-                    <td className="px-6 py-4 text-xs font-mono text-white/60">
+                    <td className="px-6 py-4 text-xs font-mono text-white/60 whitespace-nowrap">
                       {item.checkOut}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-1.5 text-xs text-white/80">
                         <Clock className="h-3.5 w-3.5 text-white/30" />
                         <span className="font-semibold">{item.totalNights}</span>
                         <span className="text-white/40">{item.totalNights === 1 ? 'Night' : 'Nights'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-xs font-bold text-white font-mono">
+                    <td className="px-6 py-4 text-xs font-bold text-white font-mono whitespace-nowrap">
                       ₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       {item.type === 'Active' ? (
                         <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] rounded-lg font-bold border border-emerald-500/25 flex items-center gap-1.5 w-fit animate-pulse">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -294,7 +295,7 @@ export default function BillingInvoicesView({
                         getStatusBadge(item.invoiceStatus!)
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right text-xs relative">
+                    <td className="px-6 py-4 text-right text-xs relative whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2.5">
                         {item.type === 'Active' ? (
                           <button
@@ -323,7 +324,6 @@ export default function BillingInvoicesView({
                                 <MoreVertical className="h-4.5 w-4.5" />
                               </button>
 
-                              {/* Popover Action Menu */}
                               {activeActionMenuId === item.id && matchInvoice && (
                                 <>
                                   <div 
@@ -388,6 +388,145 @@ export default function BillingInvoicesView({
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Records Cards - Mobile (< lg) */}
+          <div className="lg:hidden min-h-[260px]">
+            <div className="divide-y divide-white/5">
+              {paginatedHistory.map((item) => (
+                <div key={item.id} className="p-4 space-y-3 hover:bg-white/5 transition-all duration-150">
+                  {/* Top row: Guest + Status */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border font-display flex-shrink-0 ${
+                        item.type === 'Active' 
+                          ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' 
+                          : 'bg-indigo-500/10 border-indigo-500/15 text-indigo-300'
+                      }`}>
+                        {getInitials(item.guestName)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white/95">{item.guestName}</p>
+                        <p className="text-[10px] text-white/40 font-mono uppercase tracking-wider">{item.type} stay</p>
+                      </div>
+                    </div>
+                    {item.type === 'Active' ? (
+                      <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] rounded-lg font-bold border border-emerald-500/25 flex items-center gap-1 w-fit animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span>Active</span>
+                      </span>
+                    ) : (
+                      getStatusBadge(item.invoiceStatus!)
+                    )}
+                  </div>
+
+                  {/* Middle row: Room info + dates */}
+                  <div className="flex items-center gap-2 pl-[42px]">
+                    <span className="rounded-lg bg-indigo-500/15 border border-indigo-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-white flex-shrink-0">
+                      {item.roomNumber}
+                    </span>
+                    <span className="text-[10px] text-white/60 truncate">{item.roomType}</span>
+                    <span className="text-[10px] text-white/30">|</span>
+                    <span className="text-[10px] text-white/50 flex items-center gap-1 whitespace-nowrap">
+                      <Clock className="h-3 w-3" />
+                      {item.totalNights} {item.totalNights === 1 ? 'Nt' : 'Nts'}
+                    </span>
+                  </div>
+
+                  {/* Bottom row: Dates + Amount + Action */}
+                  <div className="flex items-center justify-between pl-[42px]">
+                    <div className="text-[10px] text-white/40 font-mono">
+                      {item.checkIn} → {item.checkOut}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white font-mono">
+                        ₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
+                      </span>
+                      {item.type === 'Active' ? (
+                        <button
+                          type="button"
+                          onClick={() => onCreateInvoice({
+                            roomId: item.roomNumber,
+                            guestName: item.guestName,
+                            checkInDate: item.checkIn,
+                            checkOutDate: item.checkOut !== 'In Progress' ? item.checkOut : undefined,
+                            extraBedsCount: rooms.find(r => r.id === item.roomNumber)?.extraBedsCount || 0
+                          })}
+                          className="px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500 hover:text-white text-indigo-400 text-[10px] font-bold rounded-lg border border-indigo-500/25 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Receipt className="h-3 w-3" />
+                          <span>Invoice</span>
+                        </button>
+                      ) : (
+                        <div className="relative">
+                          <button 
+                            onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                            className="p-1.5 hover:bg-white/10 border border-transparent hover:border-white/5 rounded-lg transition-all text-white/40 hover:text-white cursor-pointer"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+
+                          {activeActionMenuId === item.id && (() => {
+                            const matchInvoice = invoices.find(inv => inv.id === item.invoiceId);
+                            if (!matchInvoice) return null;
+                            return (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-10" 
+                                  onClick={() => setActiveActionMenuId(null)}
+                                />
+                                <div 
+                                  className="absolute right-0 mt-1 w-48 bg-[#12121e]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-xl z-20 py-1 text-left"
+                                  onMouseLeave={() => setActiveActionMenuId(null)}
+                                >
+                                  <button
+                                    onClick={() => {
+                                      onViewInvoice(matchInvoice);
+                                      setActiveActionMenuId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-xs text-white/75 hover:bg-white/10 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
+                                  >
+                                    <Eye className="h-4 w-4 text-white/40" />
+                                    <span>View / Print</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      onUpdateInvoiceStatus(matchInvoice.id, matchInvoice.status === 'Paid' ? 'Unpaid' : 'Paid');
+                                      setActiveActionMenuId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-xs text-white/75 hover:bg-white/10 hover:text-white flex items-center gap-2 font-medium transition-colors cursor-pointer"
+                                  >
+                                    <CreditCard className="h-4 w-4 text-white/40" />
+                                    <span>Mark {matchInvoice.status === 'Paid' ? 'Unpaid' : 'Paid'}</span>
+                                  </button>
+                                  <div className="border-t border-white/10 my-1"></div>
+                                  <button
+                                    onClick={() => {
+                                      onDeleteInvoice(matchInvoice.id);
+                                      setActiveActionMenuId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-xs text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 font-medium transition-colors cursor-pointer"
+                                  >
+                                    <Trash className="h-4 w-4 text-rose-400/80" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {paginatedHistory.length === 0 && (
+                <div className="text-center py-12 text-white/30 text-xs">
+                  No stayed booking history matching search.
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Table Footer / Pagination */}

@@ -3,18 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, Suspense, lazy } from 'react';
 import { Room, Invoice, SystemSettings } from './types';
 import { initialRooms, initialInvoices } from './data';
 import SideNavBar from './components/SideNavBar';
 import TopNavBar from './components/TopNavBar';
-import DashboardView from './components/DashboardView';
-import RoomManagementView from './components/RoomManagementView';
 import RoomDrawer from './components/RoomDrawer';
-import BillingInvoicesView from './components/BillingInvoicesView';
-import NewInvoiceFormView from './components/NewInvoiceFormView';
 import PrintableInvoiceModal from './components/PrintableInvoiceModal';
 import { Settings, Save, HelpCircle, Building, AlertCircle, ExternalLink, Key, X } from 'lucide-react';
+import { Toaster, toast } from 'sonner';
+
+const DashboardView = lazy(() => import('./components/DashboardView'));
+const RoomManagementView = lazy(() => import('./components/RoomManagementView'));
+const BillingInvoicesView = lazy(() => import('./components/BillingInvoicesView'));
+const NewInvoiceFormView = lazy(() => import('./components/NewInvoiceFormView'));
 
 // Real backend imports (Supabase Auth and Postgres)
 import { supabase, OperationType } from './lib/supabase';
@@ -24,7 +26,9 @@ const DEFAULT_SETTINGS: SystemSettings = {
   phone: '+91 86670 92950',
   gstin: '33KKRPS8566Q1ZK',
   cgstPercentage: 9,
-  sgstPercentage: 9
+  sgstpercentage: 9,
+  defaultcheckintime: '12:00',
+  defaultcheckouttime: '11:00'
 };
 
 export default function App() {
@@ -77,43 +81,107 @@ export default function App() {
           try {
             const { data: fetchedRooms, error } = await supabase
               .from('rooms')
-              .select('*')
-              .eq('user_id', userId);
+              .select('*');
 
             if (error) throw error;
 
+            // Debug fetch
+
             if (!fetchedRooms || fetchedRooms.length === 0) {
-              // Seed base rooms on-the-fly for newly authenticated profile
+              // Seed ALL base rooms for newly authenticated profile
+              // Handle empty response
               try {
                 for (const room of initialRooms) {
                   const { error: seedErr } = await supabase.from('rooms').insert({
                     ...room,
                     user_id: userId
                   });
-                  if (seedErr) throw seedErr;
+                  if (seedErr) {
+                    console.error(`[SekarInn] Failed to seed room ${room.id}:`, seedErr);
+                    // Continue seeding remaining rooms instead of stopping
+                  }
                 }
                 setDbError(null);
                 
                 // Re-fetch after seeding
-                const { data: reFetched } = await supabase.from('rooms').select('*').eq('user_id', userId);
-                if (reFetched) setRooms(reFetched as Room[]);
+                const { data: reFetched } = await supabase.from('rooms').select('*');
+                // Re-fetch after seeding
+                if (reFetched) {
+                  const uniqueMap = new Map<string, Room>();
+                  reFetched.forEach((r: any) => {
+                    const { user_id: _uid, ...rest } = r;
+                    const room = rest as Room;
+                    if (!uniqueMap.has(room.id) || room.status !== 'vacant') {
+                      uniqueMap.set(room.id, room);
+                    }
+                  });
+                  const formatted = Array.from(uniqueMap.values());
+                  formatted.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
+                  setRooms(formatted);
+                }
               } catch (err: any) {
-                console.error("Room seeding error:", err);
+                console.error("[SekarInn] Room seeding error:", err);
                 setDbError(err.message || String(err));
               }
             } else {
-              // Map snake_case 'user_id' back to 'userId' for the frontend or ignore if not used
-              // Sort by ID
-              const formattedRooms = fetchedRooms.map(r => {
-                const { user_id, ...rest } = r;
-                return rest as Room;
-              });
-              formattedRooms.sort((a, b) => a.id.localeCompare(b.id));
-              setRooms(formattedRooms);
-              setDbError(null);
+              // Check for missing rooms from initialRooms and insert them
+              const existingIds = new Set(fetchedRooms.map((r: any) => r.id));
+              const missingRooms = initialRooms.filter(r => !existingIds.has(r.id));
+              
+              if (missingRooms.length > 0) {
+                // Inserting missing rooms
+                for (const room of missingRooms) {
+                  const { error: insertErr } = await supabase.from('rooms').insert({
+                    ...room,
+                    user_id: userId
+                  });
+                  if (insertErr) {
+                    console.error(`[SekarInn] Failed to insert missing room ${room.id}:`, insertErr);
+                  }
+                }
+                // Re-fetch after inserting missing rooms
+                const { data: reFetched } = await supabase.from('rooms').select('*');
+                // Re-fetch after sync
+                if (reFetched) {
+                  const uniqueMap = new Map<string, Room>();
+                  reFetched.forEach((r: any) => {
+                    const { user_id: _uid, ...rest } = r;
+                    const room = rest as Room;
+                    if (!uniqueMap.has(room.id) || room.status !== 'vacant') {
+                      uniqueMap.set(room.id, room);
+                    }
+                  });
+                  const formatted = Array.from(uniqueMap.values());
+                  formatted.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
+                  setRooms(formatted);
+                  setDbError(null);
+                }
+              } else {
+                // All rooms present, deduplicate by ID (preferring occupied ones) and set
+                const uniqueRoomsMap = new Map<string, Room>();
+                
+                fetchedRooms.forEach((r: any) => {
+                  const { user_id: _uid, ...rest } = r;
+                  const room = rest as Room;
+                  
+                  if (!uniqueRoomsMap.has(room.id)) {
+                    uniqueRoomsMap.set(room.id, room);
+                  } else {
+                    // If a duplicate exists, prefer the one that is NOT vacant
+                    if (room.status !== 'vacant') {
+                      uniqueRoomsMap.set(room.id, room);
+                    }
+                  }
+                });
+
+                const formattedRooms = Array.from(uniqueRoomsMap.values());
+                formattedRooms.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
+                setRooms(formattedRooms);
+                setDbError(null);
+              }
             }
           } catch (error: any) {
-            console.error("Rooms snapshot error:", error);
+            console.error("[SekarInn] Rooms snapshot error:", error);
             setDbError(error.message || String(error));
           } finally {
             setIsLoading(false);
@@ -125,8 +193,7 @@ export default function App() {
           try {
             const { data: fetchedInvoices, error } = await supabase
               .from('invoices')
-              .select('*')
-              .eq('user_id', userId);
+              .select('*');
             
             if (error) throw error;
             
@@ -150,23 +217,32 @@ export default function App() {
               .from('settings')
               .select('*')
               .eq('id', 'default')
-              .eq('user_id', userId)
               .maybeSingle();
+
+            if (error) {
+              console.error("[SekarInn] Settings fetch error:", error);
+              setSettings(DEFAULT_SETTINGS);
+              return;
+            }
 
             if (docSnap) {
               const { user_id, id: _id, ...rest } = docSnap;
               setSettings(rest as SystemSettings);
             } else {
               // Seed settings
-              await supabase.from('settings').insert({
+              const { error: seedErr } = await supabase.from('settings').insert({
                 id: 'default',
                 user_id: userId,
                 ...DEFAULT_SETTINGS
               });
+              if (seedErr) {
+                console.error("[SekarInn] Settings seed error:", seedErr);
+              }
               setSettings(DEFAULT_SETTINGS);
             }
           } catch (error) {
             console.error("Settings fetch error:", error);
+            setSettings(DEFAULT_SETTINGS);
           }
         };
 
@@ -178,16 +254,23 @@ export default function App() {
         const channels = supabase.channel('custom-all-channel')
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'rooms', filter: `user_id=eq.${userId}` },
+            { event: '*', schema: 'public', table: 'rooms' },
             (payload) => {
               fetchRooms();
             }
           )
           .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: 'invoices', filter: `user_id=eq.${userId}` },
+            { event: '*', schema: 'public', table: 'invoices' },
             (payload) => {
               fetchInvoices();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'settings' },
+            (payload) => {
+              fetchSettings();
             }
           )
           .subscribe();
@@ -206,6 +289,133 @@ export default function App() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // Automated Checkout Monitor
+  useEffect(() => {
+    if (!isLoggedIn || !rooms.length || !settings) return;
+
+    const checkOverdueRooms = async () => {
+      const now = new Date();
+      let hasChanges = false;
+      const updatedRooms = [...rooms];
+
+      for (let i = 0; i < updatedRooms.length; i++) {
+        const room = updatedRooms[i];
+
+        // Auto-transition booked → occupied when check-in date arrives
+        if (room.status === 'booked' && room.checkInDate) {
+          const checkinDate = new Date(room.checkInDate);
+          if (!isNaN(checkinDate.getTime()) && now >= checkinDate) {
+            const updatedRoom = { ...room, status: 'occupied' as const };
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                await supabase.from('rooms').update(updatedRoom).eq('id', room.id).eq('user_id', user.id);
+                updatedRooms[i] = updatedRoom;
+                hasChanges = true;
+              }
+            } catch (err) {
+              console.error("Auto-booking transition failed", err);
+            }
+          }
+        }
+
+        if (room.status === 'occupied' && room.checkOutDate) {
+          const checkoutDate = new Date(room.checkOutDate);
+          
+          if (!isNaN(checkoutDate.getTime()) && now > checkoutDate) {
+             // AUTO DRAFT INVOICE
+             const generatedId = `INV-${Date.now()}`;
+             
+             // Safely calculate nights
+             const inDate = new Date(room.checkInDate || '');
+             const diff = checkoutDate.getTime() - (isNaN(inDate.getTime()) ? checkoutDate.getTime() : inDate.getTime());
+             const totalNights = Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
+             
+             const newInvoice: Invoice = {
+               id: generatedId,
+               customerName: room.guestName || 'Unknown Guest',
+               customerEmail: '',
+               customerPhone: '',
+               roomNumber: room.id,
+               roomType: room.roomType,
+               checkInDate: room.checkInDate || '',
+               checkOutDate: room.checkOutDate || '',
+               date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+               totalNights: totalNights,
+               lineItems: [
+                 {
+                   id: 'li-1',
+                   description: `Room Charges - ${room.roomType}`,
+                   qty: totalNights,
+                   unitPrice: room.basePrice,
+                   total: totalNights * room.basePrice
+                 }
+               ],
+               notes: 'Auto-drafted by system due to late checkout.',
+               subtotal: room.amountDue || 0,
+               cgst: (room.amountDue || 0) * (settings.cgstPercentage / 100),
+               sgst: (room.amountDue || 0) * (settings.sgstpercentage / 100),
+               grandTotal: (room.amountDue || 0) + ((room.amountDue || 0) * (settings.cgstPercentage / 100)) + ((room.amountDue || 0) * (settings.sgstpercentage / 100)),
+               status: 'Draft'
+             };
+             
+             if (room.extraBedsCount && room.extraBedsCount > 0) {
+                newInvoice.lineItems.push({
+                   id: 'li-2',
+                   description: 'Extra Bed Charges',
+                   qty: totalNights * room.extraBedsCount,
+                   unitPrice: room.extraBedPrice || 500,
+                   total: totalNights * room.extraBedsCount * (room.extraBedPrice || 500)
+                });
+             }
+
+             try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                   await supabase.from('invoices').insert({ ...newInvoice, user_id: user.id });
+                   setInvoices(prev => [newInvoice, ...prev]);
+                   toast.warning(`Room ${room.id} checkout time reached! Draft invoice auto-generated.`, { duration: 8000 });
+                }
+             } catch (err) {
+                console.error("Auto invoice failed", err);
+             }
+
+             // CHANGE ROOM STATUS TO CLEANING
+             const updatedRoom = {
+               ...room,
+               status: 'cleaning' as const,
+               guestName: '',
+               guestId: '',
+               checkInDate: '',
+               checkOutDate: '',
+               amountDue: 0,
+               extraBedsCount: 0,
+               expectedTime: '14:00 PM'
+             };
+             try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                   await supabase.from('rooms').update(updatedRoom).eq('id', room.id).eq('user_id', user.id);
+                   updatedRooms[i] = updatedRoom;
+                   hasChanges = true;
+                }
+             } catch (err) {
+                console.error("Auto update room failed", err);
+             }
+          }
+        }
+      }
+
+      if (hasChanges) {
+        setRooms(updatedRooms);
+      }
+    };
+
+    const interval = setInterval(checkOverdueRooms, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [rooms, settings, isLoggedIn]);
+
 
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -243,6 +453,7 @@ export default function App() {
         setIsLoading(true);
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        toast.success("Logged out successfully");
       } catch (err) {
         console.error(err);
       } finally {
@@ -278,7 +489,7 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("Room Update Error:", error);
-      alert("Failed to update room: " + error.message);
+      toast.error("Failed to update room: " + error.message);
     }
   };
 
@@ -287,7 +498,7 @@ export default function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     if (rooms.some(r => r.id === newRoom.id)) {
-      alert(`Room ${newRoom.id} already exists!`);
+      toast.error(`Room ${newRoom.id} already exists!`);
       return;
     }
     try {
@@ -296,7 +507,7 @@ export default function App() {
       setRooms(prev => [...prev, newRoom].sort((a, b) => a.id.localeCompare(b.id)));
     } catch (error: any) {
       console.error("Add Room Error:", error);
-      alert("Failed to add room: " + error.message);
+      toast.error("Failed to add room: " + error.message);
     }
   };
 
@@ -309,10 +520,10 @@ export default function App() {
       if (error) throw error;
       setSelectedRoomId(null);
       setRooms(prev => prev.filter(r => r.id !== roomId));
-      alert(`Room ${roomId} was deactivated and removed from the register.`);
+      toast.success(`Room ${roomId} was deactivated and removed from the register.`);
     } catch (error: any) {
       console.error("Delete Room Error:", error);
-      alert("Failed to delete room: " + error.message);
+      toast.error("Failed to delete room: " + error.message);
     }
   };
 
@@ -333,12 +544,12 @@ export default function App() {
         }
         
         setSelectedRoomId(null);
-        alert("Database wiped successfully! System is running fresh with standard vacant parameters.");
+        toast.success("Database wiped successfully! System is running fresh with standard vacant parameters.");
         // We could trigger a refetch here if we aren't relying entirely on local state
         window.location.reload(); 
       } catch (error: any) {
         console.error("Database Wipe Error:", error);
-        alert("Failed to wipe database: " + error.message);
+        toast.error("Failed to wipe database: " + error.message);
       } finally {
         setIsLoading(false);
       }
@@ -348,14 +559,16 @@ export default function App() {
   // Handles saving system configurations
   const handleSaveSettings = async (updatedSettings: SystemSettings) => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) throw new Error("Not authenticated");
     try {
       const { error } = await supabase.from('settings').upsert({ ...updatedSettings, id: 'default', user_id: user.id });
       if (error) throw error;
       setSettings(updatedSettings);
+      toast.success("Settings saved successfully!");
     } catch (error: any) {
       console.error("Settings Update Error:", error);
-      alert("Failed to save settings: " + error.message);
+      toast.error("Failed to save settings: " + (error.message || String(error)));
+      throw error;
     }
   };
 
@@ -364,7 +577,7 @@ export default function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     try {
-      const cleanId = newInvoice.id.replace('#', 'INV-');
+      const cleanId = newInvoice.id.replace(/^#/, '');
       const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id });
       if (error) throw error;
       setInvoices(prev => [{ ...newInvoice, id: cleanId }, ...prev.filter(i => i.id !== cleanId)]);
@@ -372,7 +585,7 @@ export default function App() {
       setPreviewingInvoice({ ...newInvoice, id: cleanId });
     } catch (error: any) {
       console.error("Invoice Save Error:", error);
-      alert("Failed to save invoice: " + error.message);
+      toast.error("Failed to save invoice: " + error.message);
     }
   };
 
@@ -381,13 +594,13 @@ export default function App() {
     if (!user) return;
     if (confirm(`Are you sure you want to delete Invoice ${invoiceId}? This is irreversible.`)) {
       try {
-        const cleanId = invoiceId.replace('#', 'INV-');
+        const cleanId = invoiceId.replace(/^#/, '');
         const { error } = await supabase.from('invoices').delete().eq('id', cleanId).eq('user_id', user.id);
         if (error) throw error;
         setInvoices(prev => prev.filter(i => i.id !== cleanId));
       } catch (error: any) {
         console.error("Invoice Delete Error:", error);
-        alert("Failed to delete invoice: " + error.message);
+        toast.error("Failed to delete invoice: " + error.message);
       }
     }
   };
@@ -396,84 +609,78 @@ export default function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     try {
-      const cleanId = invoiceId.replace('#', 'INV-');
+      const cleanId = invoiceId.replace(/^#/, '');
       const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', cleanId).eq('user_id', user.id);
       if (error) throw error;
       setInvoices(prev => prev.map(i => i.id === cleanId ? { ...i, status: newStatus } : i));
     } catch (error: any) {
       console.error("Invoice Update Error:", error);
-      alert("Failed to update invoice status: " + error.message);
+      toast.error("Failed to update invoice status: " + error.message);
     }
   };
 
   // Render view router
   const renderActiveView = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return (
-          <DashboardView 
-            rooms={rooms} 
-            invoices={invoices} 
-            setActiveTab={setActiveTab}
-            onSelectRoom={(id) => setSelectedRoomId(id)}
-          />
-        );
-      case 'rooms':
-        return (
-          <RoomManagementView 
-            rooms={rooms} 
-            onSelectRoom={(id) => setSelectedRoomId(id)} 
-            onAddRoom={handleAddRoom}
-            onUpdateRoom={handleSaveRoomStatus}
-          />
-        );
-      case 'billing':
-        return (
-          <BillingInvoicesView 
-            rooms={rooms}
-            invoices={invoices}
-            onCreateInvoice={(prefill) => {
-              setPrefillInvoice(prefill || null);
-              setActiveTab('new-invoice');
-            }}
-            onViewInvoice={(invoice) => setPreviewingInvoice(invoice)}
-            onDeleteInvoice={handleDeleteInvoice}
-            onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
-          />
-        );
-      case 'new-invoice':
-        return (
-          <NewInvoiceFormView 
-            rooms={rooms}
-            onSaveInvoice={handleSaveInvoice}
-            onCancel={() => {
-              setPrefillInvoice(null);
-              setActiveTab('billing');
-            }}
-            prefillData={prefillInvoice}
-            settings={settings}
-          />
-        );
-      case 'settings':
-        return (
-          <SettingsView 
-            onResetDatabase={handleResetDatabase}
-            roomsCount={rooms.length}
-            invoicesCount={invoices.length}
-            settings={settings}
-            onSaveSettings={handleSaveSettings}
-          />
-        );
-      default:
-        return (
-          <RoomManagementView 
-            rooms={rooms} 
-            onSelectRoom={(id) => setSelectedRoomId(id)} 
-            onAddRoom={handleAddRoom} 
-            onUpdateRoom={handleSaveRoomStatus}
-          />
-        );
-    }
+    return (
+        <div className="p-4 sm:p-6 pb-24 lg:pb-6 max-w-[1600px] mx-auto animate-in fade-in duration-500">
+          <Suspense fallback={<div className="flex items-center justify-center h-64 text-white/50"><div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                rooms={rooms}
+                invoices={invoices}
+                setActiveTab={setActiveTab}
+                onSelectRoom={(id) => setSelectedRoomId(id)}
+              />
+            )}
+            
+            {activeTab === 'rooms' && (
+              <RoomManagementView
+                rooms={rooms}
+                onSelectRoom={(roomId) => setSelectedRoomId(roomId)}
+                onAddRoom={handleAddRoom}
+                onUpdateRoom={handleSaveRoomStatus}
+              />
+            )}
+            
+            {activeTab === 'billing' && (
+              <BillingInvoicesView
+                rooms={rooms}
+                invoices={invoices}
+                onCreateInvoice={(prefill) => {
+                  setPrefillInvoice(prefill || null);
+                  setActiveTab('new-invoice');
+                }}
+                onViewInvoice={(invoice) => setPreviewingInvoice(invoice)}
+                onDeleteInvoice={handleDeleteInvoice}
+                onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+              />
+            )}
+            
+            {activeTab === 'new-invoice' && (
+              <NewInvoiceFormView
+                rooms={rooms}
+                prefillData={prefillInvoice}
+                onSaveInvoice={handleSaveInvoice}
+                onCancel={() => {
+                  setPrefillInvoice(null);
+                  setActiveTab('billing');
+                }}
+                settings={settings}
+              />
+            )}
+            
+            {activeTab === 'settings' && (
+              <SettingsView
+                onResetDatabase={handleResetDatabase}
+                roomsCount={rooms.length}
+                invoicesCount={invoices.length}
+                settings={settings}
+                onSaveSettings={handleSaveSettings}
+              />
+            )}
+          </Suspense>
+        </div>
+    );
   };
 
   if (!isAuthChecked) {
@@ -513,7 +720,7 @@ export default function App() {
         <div className="absolute top-0 left-0 right-0 bg-red-500/90 text-white p-4 z-50 text-center flex items-center justify-center gap-3 shadow-lg backdrop-blur-md">
           <AlertCircle size={20} />
           <div>
-            <span className="font-semibold">Database Connection Error:</span> {dbError === 'PERMISSION_DENIED' ? 'Missing or insufficient permissions. Please check your Firestore Security Rules.' : dbError}
+            <span className="font-semibold">Database Connection Error:</span> {dbError === 'PERMISSION_DENIED' ? 'Missing or insufficient permissions. Please check your Supabase RLS Policies.' : dbError}
           </div>
           <button 
             onClick={() => setDbError(null)} 
@@ -534,6 +741,8 @@ export default function App() {
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
+
+      <Toaster position="top-right" richColors />
 
       {/* Primary Layout Segment */}
       <div 
@@ -593,7 +802,9 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
   const [gstin, setGstin] = useState(settings.gstin);
   const [phone, setPhone] = useState(settings.phone);
   const [cgstPercentage, setCgstPercentage] = useState(settings.cgstPercentage.toString());
-  const [sgstPercentage, setSgstPercentage] = useState(settings.sgstPercentage.toString());
+  const [sgstpercentage, setSgstPercentage] = useState(settings.sgstpercentage.toString());
+  const [defaultcheckintime, setDefaultCheckInTime] = useState(settings.defaultcheckintime || '12:00');
+  const [defaultcheckouttime, setDefaultCheckOutTime] = useState(settings.defaultcheckouttime || '11:00');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -601,18 +812,20 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
     setGstin(settings.gstin);
     setPhone(settings.phone);
     setCgstPercentage(settings.cgstPercentage.toString());
-    setSgstPercentage(settings.sgstPercentage.toString());
+    setSgstPercentage(settings.sgstpercentage.toString());
+    setDefaultCheckInTime(settings.defaultcheckintime || '12:00');
+    setDefaultCheckOutTime(settings.defaultcheckouttime || '11:00');
   }, [settings]);
   
   const handleSaveSettings = async () => {
     const cgst = parseFloat(cgstPercentage);
-    const sgst = parseFloat(sgstPercentage);
+    const sgst = parseFloat(sgstpercentage);
     if (isNaN(cgst) || cgst < 0 || cgst > 100) {
-      alert("Please enter a valid CGST percentage between 0 and 100.");
+      toast.error("Please enter a valid CGST percentage between 0 and 100.");
       return;
     }
     if (isNaN(sgst) || sgst < 0 || sgst > 100) {
-      alert("Please enter a valid SGST percentage between 0 and 100.");
+      toast.error("Please enter a valid SGST percentage between 0 and 100.");
       return;
     }
     setIsSaving(true);
@@ -622,11 +835,12 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
         phone,
         gstin,
         cgstPercentage: cgst,
-        sgstPercentage: sgst
+        sgstpercentage: sgst,
+        defaultcheckintime,
+        defaultcheckouttime
       });
-      alert("Configurations saved successfully! Changes are applied.");
     } catch (error) {
-      // error handled in helper
+      // error toast already shown by parent handler
     } finally {
       setIsSaving(false);
     }
@@ -700,9 +914,35 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
                   step="0.1"
                   min="0"
                   max="100" 
-                  value={sgstPercentage}
+                  value={sgstpercentage}
                   onChange={(e) => setSgstPercentage(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3 mt-6">
+              <Settings className="h-5 w-5 text-emerald-400" />
+              <h4 className="text-base font-bold text-white font-display">Workflow Settings</h4>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Standard Check-In Time</label>
+                <input 
+                  type="time" 
+                  value={defaultcheckintime}
+                  onChange={(e) => setDefaultCheckInTime(e.target.value)}
+                  className="w-full glass-input rounded-xl p-3 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Standard Check-Out Time</label>
+                <input 
+                  type="time" 
+                  value={defaultcheckouttime}
+                  onChange={(e) => setDefaultCheckOutTime(e.target.value)}
+                  className="w-full glass-input rounded-xl p-3 text-sm"
                 />
               </div>
             </div>
@@ -738,48 +978,13 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
 
           <div className="bg-white/5 border border-white/5 p-4 rounded-xl flex items-start gap-2.5 text-xs text-white/70">
             <HelpCircle className="h-5 w-5 text-indigo-400 flex-shrink-0 mt-0.5" />
-            <span>Tax properties are set to standard Indian GST ({settings.cgstPercentage}% CGST + {settings.sgstPercentage}% SGST).</span>
+            <span>Tax properties are set to standard Indian GST ({cgstPercentage}% CGST + {sgstpercentage}% SGST).</span>
           </div>
         </div>
 
       </div>
 
-      {/* Database Administration Operations Block (CRITICAL real-app feature) */}
-      <div className="glass-panel p-6 rounded-2xl shadow-lg border border-white/10 mt-6 space-y-4">
-        <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-          <Building className="h-5 w-5 text-rose-400" />
-          <h4 className="text-base font-bold text-white font-display">Database Administration</h4>
-        </div>
-        
-        <p className="text-xs text-white/50 leading-relaxed">
-          Manage local states and persistent ledger variables. You can reset databases, seed prefilled demo profiles, or clear out diagnostic information.
-        </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/5 p-4 rounded-xl border border-white/5 text-center text-xs">
-          <div>
-            <span className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Total Rooms Logged</span>
-            <strong className="text-white text-lg font-mono font-bold">{roomsCount} Rooms</strong>
-          </div>
-          <div>
-            <span className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Active Bills Filed</span>
-            <strong className="text-white text-lg font-mono font-bold">{invoicesCount} Invoices</strong>
-          </div>
-          <div>
-            <span className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">State Sync Status</span>
-            <strong className="text-emerald-400 text-lg font-semibold">&bull; Online (Local)</strong>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onResetDatabase}
-            className="px-5 py-2.5 border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500 hover:text-white transition-all rounded-xl text-xs font-bold cursor-pointer active:scale-95"
-          >
-            Wipe &amp; Create Fresh Hotel
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -877,9 +1082,11 @@ function LoginView({
       <div className="glass-panel max-w-sm w-full p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10 space-y-5">
         <div className="text-center space-y-2">
           <div className="flex justify-center flex-col items-center gap-3">
-            <div className="bg-[#0f1646] p-3.5 rounded-2xl border border-white/10 flex items-center justify-center text-white h-14 w-14">
-              <Building className="h-8 w-8 text-white" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Sekar Inn"
+              className="h-20 w-20 rounded-2xl object-cover shadow-lg border border-white/10"
+            />
             <h1 className="text-2xl font-black text-white tracking-tight font-display">Sekar Inn</h1>
           </div>
           <p className="text-xs text-white/50">Desk Management System Authentication Terminal</p>

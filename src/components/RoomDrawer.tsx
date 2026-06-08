@@ -5,7 +5,8 @@
 
 import { useState, useEffect } from 'react';
 import { Room } from '../types';
-import { X, User, CheckCircle2, Group, Sparkles, AlertTriangle, Trash2, Plus, Minus, Wind } from 'lucide-react';
+import { X, User, CheckCircle2, Group, Sparkles, AlertTriangle, Trash2, Plus, Minus, Wind, Calendar } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface RoomDrawerProps {
   room: Room | null;
@@ -51,7 +52,7 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
 
   // Clean auto-update of room Stay Amount based on check-in/checkout dates & extra beds
   useEffect(() => {
-    if (status === 'occupied' && checkInDate && checkOutDate && room) {
+    if ((status === 'occupied' || status === 'booked') && checkInDate && checkOutDate && room) {
       try {
         const d1 = new Date(checkInDate);
         const d2 = new Date(checkOutDate);
@@ -74,12 +75,12 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
     const updatedRoom: Room = {
       ...room,
       status,
-      guestName: status === 'occupied' ? guestName : '',
-      guestId: status === 'occupied' ? guestId : '',
-      checkInDate: status === 'occupied' ? checkInDate : '',
-      checkOutDate: status === 'occupied' ? checkOutDate : '',
-      amountDue: status === 'occupied' ? amountDue : 0,
-      extraBedsCount: status === 'occupied' ? extraBedsCount : 0,
+      guestName: status === 'occupied' || status === 'booked' ? guestName : '',
+      guestId: status === 'occupied' || status === 'booked' ? guestId : '',
+      checkInDate: status === 'occupied' || status === 'booked' ? checkInDate : '',
+      checkOutDate: status === 'occupied' || status === 'booked' ? checkOutDate : '',
+      amountDue: status === 'occupied' || status === 'booked' ? amountDue : 0,
+      extraBedsCount: status === 'occupied' || status === 'booked' ? extraBedsCount : 0,
       maintenanceIssue: status === 'maintenance' ? maintenanceIssue : '',
       maintenancePriority: priority,
       maintenanceNotes: notes,
@@ -134,61 +135,6 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
         {/* Content Area */}
         <div className="flex-grow overflow-y-auto p-6 space-y-6">
           
-          {/* Guest Summary Card  */}
-          {status === 'occupied' ? (
-            <div className="glass-panel p-5 rounded-2xl border border-white/10 shadow-lg space-y-4" id="guest-card">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-indigo-400" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white font-display tracking-tight" id="active-guest-name">
-                    {guestName || 'Unnamed Guest'}
-                  </h3>
-                  <p className="text-xs text-white/40 font-mono">ID: {guestId || 'ADHR-XXXX-XXXX'}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs">
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Check-In</p>
-                  <p className="font-semibold text-white/95 text-sm mt-1">{checkInDate || 'Not specified'}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Check-Out</p>
-                  <p className="font-semibold text-white/95 text-sm mt-1">{checkOutDate || 'Not specified'}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs">
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Extra Bed Option</p>
-                  <p className="font-semibold text-neutral-300 text-xs mt-1">
-                    {extraBedsCount > 0 ? `${extraBedsCount} Bed (+₹${(extraBedsCount * (room.extraBedPrice || 500)).toLocaleString('en-IN')})` : 'No extra beds'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest font-body-sm">Stay Daily Rate</p>
-                  <p className="font-semibold text-emerald-400 text-xs mt-1">
-                    ₹{((room.basePrice ?? 0) + extraBedsCount * (room.extraBedPrice || 500)).toLocaleString('en-IN')}/day
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center text-sm">
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Total Stay Due</p>
-                <div className="flex items-center font-bold text-indigo-400 text-base font-mono">
-                  <span className="text-xs mr-0.5">₹</span> 
-                  <span>{(amountDue ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white/5 p-4 border border-white/10 rounded-2xl text-center text-white/60 text-xs">
-              This room is currently empty. Update status to <strong className="text-white">Occupied</strong> to configure guest details.
-            </div>
-          )}
-
           {/* Update Status Actions Grid */}
           <div className="space-y-3">
             <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Update Status</h4>
@@ -207,6 +153,21 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
               >
                 <CheckCircle2 className="h-5 w-5" />
                 <span className="text-xs font-semibold">Vacant</span>
+              </button>
+
+              {/* Booked option */}
+              <button
+                type="button"
+                onClick={() => setStatus('booked')}
+                className={`flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all cursor-pointer ${
+                  status === 'booked'
+                    ? 'border-violet-500 bg-violet-500/10 text-violet-300 font-bold shadow-md shadow-violet-500/5'
+                    : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white'
+                }`}
+                id="btn-status-booked"
+              >
+                <Calendar className="h-5 w-5" />
+                <span className="text-xs font-semibold">Booked</span>
               </button>
 
               {/* Occupied option */}
@@ -243,7 +204,7 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
               <button
                 type="button"
                 onClick={() => setStatus('maintenance')}
-                className={`flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all cursor-pointer ${
+                className={`flex flex-col items-center justify-center gap-2 py-3 rounded-xl border transition-all cursor-pointer col-span-2 ${
                   status === 'maintenance'
                     ? 'border-rose-500 bg-rose-500/10 text-rose-300 font-bold shadow-md shadow-rose-500/5'
                     : 'border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white'
@@ -257,101 +218,158 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
           </div>
 
           {/* Conditional inputs based on selected state */}
-          {status === 'occupied' && (
-            <div className="space-y-4 p-4 border border-white/10 rounded-2xl bg-white/5 font-display">
-              <h5 className="text-[10px] font-bold text-white/60 uppercase tracking-widest border-b border-white/10 pb-2">Guest Check-In Data</h5>
-              <div>
-                <label className="block text-xs font-bold text-white/65 mb-1">Guest Full Name</label>
-                <input
-                  type="text"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  placeholder="e.g. Rajesh Kumar"
-                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
-                />
-              </div>
+          {status === 'vacant' && (
+            <div className="bg-white/5 p-4 border border-white/10 rounded-2xl text-center text-white/60 text-xs">
+              This room is currently empty. Update status to <strong className="text-white">Booked</strong> or <strong className="text-white">Occupied</strong> to configure guest details.
+            </div>
+          )}
 
-              <div className="grid grid-cols-2 gap-3">
+          {(status === 'occupied' || status === 'booked') && (
+            <>
+              <div className="space-y-4 p-4 border border-white/10 rounded-2xl bg-white/5 font-display">
+                <h5 className="text-[10px] font-bold text-white/60 uppercase tracking-widest border-b border-white/10 pb-2">Guest Check-In Data</h5>
                 <div>
-                  <label className="block text-xs font-bold text-white/65 mb-1">Guest ID Proof Code</label>
+                  <label className="block text-xs font-bold text-white/65 mb-1">Guest Full Name</label>
                   <input
                     type="text"
-                    value={guestId}
-                    onChange={(e) => setGuestId(e.target.value)}
-                    placeholder="e.g. ADHR-4592-XXXX"
-                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    placeholder="e.g. Rajesh Kumar"
+                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-white/65 mb-1">Amount Due (₹)</label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-white/65 mb-1">Guest ID Proof Code</label>
+                    <input
+                      type="text"
+                      value={guestId}
+                      onChange={(e) => setGuestId(e.target.value)}
+                      placeholder="e.g. ADHR-4592-XXXX"
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-white/65 mb-1">Amount Due (₹)</label>
+                    <input
+                      type="number"
+                      value={amountDue || ''}
+                      onChange={(e) => setAmountDue(Number(e.target.value))}
+                      placeholder="14500"
+                      className="w-full border border-white/10 bg-white/5 text-emerald-400 font-mono font-bold rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-white/65 mb-1">Check-In Date</label>
+                    <input
+                      type="datetime-local"
+                      value={checkInDate}
+                      onChange={(e) => setCheckInDate(e.target.value)}
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-white/65 mb-1">Check-Out Date</label>
+                    <input
+                      type="datetime-local"
+                      value={checkOutDate}
+                      onChange={(e) => setCheckOutDate(e.target.value)}
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10 pt-3">
+                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Extra Bed Configuration</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setExtraBedsCount(Math.max(0, extraBedsCount - 1))}
+                      className="p-1.5 border border-white/10 bg-white/5 hover:bg-white/15 text-white rounded-lg transition-colors cursor-pointer select-none"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
+                    <span className="text-sm font-black text-white min-w-[20px] text-center font-mono">{extraBedsCount}</span>
+                    <button
+                      type="button"
+                      onClick={() => setExtraBedsCount(extraBedsCount + 1)}
+                      className="p-1.5 border border-white/10 bg-white/5 hover:bg-white/15 text-white rounded-lg transition-colors cursor-pointer select-none"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                    <span className="text-[10px] text-white/40 italic ml-1">
+                      (+₹{(room.extraBedPrice || 500)} / night per bed)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-white/10 pt-3 flex items-center gap-2">
                   <input
-                    type="number"
-                    value={amountDue || ''}
-                    onChange={(e) => setAmountDue(Number(e.target.value))}
-                    placeholder="14500"
-                    className="w-full border border-white/10 bg-white/5 text-emerald-400 font-mono font-bold rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
+                    type="checkbox"
+                    checked={createInvoiceOnSave}
+                    onChange={(e) => setCreateInvoiceOnSave(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-white/15 bg-white/5 text-indigo-500 focus:ring-0 cursor-pointer accent-indigo-500"
+                    id="checkbox-drawer-create-invoice"
                   />
+                  <label htmlFor="checkbox-drawer-create-invoice" className="text-xs text-white/70 select-none cursor-pointer hover:text-white">
+                    Create Invoice automatically for this booking on save
+                  </label>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-white/65 mb-1">Check-In Date</label>
-                  <input
-                    type="date"
-                    value={checkInDate}
-                    onChange={(e) => setCheckInDate(e.target.value)}
-                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
-                  />
+              {/* Guest Summary Card  */}
+              <div className="glass-panel p-5 rounded-2xl border border-white/10 shadow-lg space-y-4" id="guest-card">
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                    <User className="h-5 w-5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white font-display tracking-tight" id="active-guest-name">
+                      {guestName || 'Unnamed Guest'}
+                    </h3>
+                    <p className="text-xs text-white/40 font-mono">ID: {guestId || 'ADHR-XXXX-XXXX'}</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-white/65 mb-1">Check-Out Date</label>
-                  <input
-                    type="date"
-                    value={checkOutDate}
-                    onChange={(e) => setCheckOutDate(e.target.value)}
-                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors"
-                  />
-                </div>
-              </div>
 
-              <div className="border-t border-white/10 pt-3">
-                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Extra Bed Configuration</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setExtraBedsCount(Math.max(0, extraBedsCount - 1))}
-                    className="p-1.5 border border-white/10 bg-white/5 hover:bg-white/15 text-white rounded-lg transition-colors cursor-pointer select-none"
-                  >
-                    <Minus className="h-3 w-3" />
-                  </button>
-                  <span className="text-sm font-black text-white min-w-[20px] text-center font-mono">{extraBedsCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => setExtraBedsCount(extraBedsCount + 1)}
-                    className="p-1.5 border border-white/10 bg-white/5 hover:bg-white/15 text-white rounded-lg transition-colors cursor-pointer select-none"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                  <span className="text-[10px] text-white/40 italic ml-1">
-                    (+₹{(room.extraBedPrice || 500)} / night per bed)
-                  </span>
+                <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs">
+                  <div>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Check-In</p>
+                    <p className="font-semibold text-white/95 text-sm mt-1">{checkInDate || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Check-Out</p>
+                    <p className="font-semibold text-white/95 text-sm mt-1">{checkOutDate || 'Not specified'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs">
+                  <div>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Extra Bed Option</p>
+                    <p className="font-semibold text-neutral-300 text-xs mt-1">
+                      {extraBedsCount > 0 ? `${extraBedsCount} Bed (+₹${(extraBedsCount * (room.extraBedPrice || 500)).toLocaleString('en-IN')})` : 'No extra beds'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest font-body-sm">Stay Daily Rate</p>
+                    <p className="font-semibold text-emerald-400 text-xs mt-1">
+                      ₹{((room.basePrice ?? 0) + extraBedsCount * (room.extraBedPrice || 500)).toLocaleString('en-IN')}/day
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center text-sm">
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Total Stay Due</p>
+                  <div className="flex items-center font-bold text-indigo-400 text-base font-mono">
+                    <span className="text-xs mr-0.5">₹</span> 
+                    <span>{(amountDue ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
                 </div>
               </div>
-
-              <div className="border-t border-white/10 pt-3 flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={createInvoiceOnSave}
-                  onChange={(e) => setCreateInvoiceOnSave(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-white/15 bg-white/5 text-indigo-500 focus:ring-0 cursor-pointer accent-indigo-500"
-                  id="checkbox-drawer-create-invoice"
-                />
-                <label htmlFor="checkbox-drawer-create-invoice" className="text-xs text-white/70 select-none cursor-pointer hover:text-white">
-                  Create Invoice automatically for this booking on save
-                </label>
-              </div>
-            </div>
+            </>
           )}
 
           {status === 'cleaning' && (
@@ -371,47 +389,49 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
           )}
 
           {status === 'maintenance' && (
-            <div className="space-y-3 p-4 border border-white/10 rounded-2xl bg-white/5">
-              <h5 className="text-[10px] font-bold text-white/60 uppercase tracking-widest border-b border-white/10 pb-2">Maintenance Issue Details</h5>
-              <div>
-                <label className="block text-xs font-bold text-white/65 mb-1">Specific Issue</label>
-                <input
-                  type="text"
-                  value={maintenanceIssue}
-                  onChange={(e) => setMaintenanceIssue(e.target.value)}
-                  placeholder="e.g. AC Leakage, Plumbing repair"
-                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
-                />
+            <>
+              <div className="space-y-3 p-4 border border-white/10 rounded-2xl bg-white/5">
+                <h5 className="text-[10px] font-bold text-white/60 uppercase tracking-widest border-b border-white/10 pb-2">Maintenance Issue Details</h5>
+                <div>
+                  <label className="block text-xs font-bold text-white/65 mb-1">Specific Issue</label>
+                  <input
+                    type="text"
+                    value={maintenanceIssue}
+                    onChange={(e) => setMaintenanceIssue(e.target.value)}
+                    placeholder="e.g. AC Leakage, Plumbing repair"
+                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                </div>
               </div>
-            </div>
+              
+              {/* Maintenance priorities */}
+              <div className="space-y-4 pt-2">
+                <div>
+                  <label className="block text-sm font-bold text-white/80 mb-1 font-display">Maintenance Priority</label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as any)}
+                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="Low" className="bg-[#12121e]">Low</option>
+                    <option value="Medium" className="bg-[#12121e]">Medium</option>
+                    <option value="High / Urgent" className="bg-[#12121e]">High / Urgent</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white/80 mb-1 font-display">Maintenance Notes</label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Type any specific instructions or issues here..."
+                    rows={3}
+                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 resize-none transition-all duration-300"
+                  />
+                </div>
+              </div>
+            </>
           )}
-
-          {/* Maintenance priorities */}
-          <div className="space-y-4 pt-2">
-            <div>
-              <label className="block text-sm font-bold text-white/80 mb-1 font-display">Maintenance Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="Low" className="bg-[#12121e]">Low</option>
-                <option value="Medium" className="bg-[#12121e]">Medium</option>
-                <option value="High / Urgent" className="bg-[#12121e]">High / Urgent</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-white/80 mb-1 font-display">Maintenance Notes</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Type any specific instructions or issues here..."
-                rows={3}
-                className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 resize-none transition-all duration-300"
-              />
-            </div>
-          </div>
 
         </div>
 
@@ -438,7 +458,11 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete }: RoomDraw
             type="button"
             onClick={() => {
               if (room.status === 'occupied') {
-                alert('Warning: This room is currently occupied. Please complete guest check-out or check-out billing before deleting this room.');
+                toast.error('Warning: This room is currently occupied. Please complete guest check-out or check-out billing before deleting this room.');
+                return;
+              }
+              if (room.status === 'booked') {
+                toast.error('Warning: This room has a future booking. Please cancel the booking before deleting this room.');
                 return;
               }
               onDelete(room.id);

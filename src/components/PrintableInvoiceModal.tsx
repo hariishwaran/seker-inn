@@ -13,7 +13,7 @@ interface PrintableInvoiceModalProps {
   settings: SystemSettings;
 }
 
-// Quick numbers-to-words converter for dynamic indian rupee bills
+// Quick numbers-to-words converter for Indian rupee bills (lakhs/crores)
 function convertNumberToWords(amount: number): string {
   const integerPart = Math.floor(amount);
   
@@ -25,7 +25,8 @@ function convertNumberToWords(amount: number): string {
     if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
     if (n < 1000) return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " and " + helper(n % 100) : "");
     if (n < 100000) return helper(Math.floor(n / 1000)) + " Thousand" + (n % 1000 !== 0 ? " " + helper(n % 1000) : "");
-    return "";
+    if (n < 10000000) return helper(Math.floor(n / 100000)) + " Lakh" + (n % 100000 !== 0 ? " " + helper(n % 100000) : "");
+    return helper(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 !== 0 ? " " + helper(n % 10000000) : "");
   }
 
   if (integerPart === 0) return "Zero Rupees";
@@ -33,22 +34,14 @@ function convertNumberToWords(amount: number): string {
   return words ? `${words} Rupees Only` : "Rupees Only";
 }
 
-// Helper functions for formatting Sekar Inn Receipt elements to match physical photo exactly
-const getAadharNumber = (invoice: Invoice): string => {
+// Mask Aadhar - show only last 4 digits if present
+const getMaskedAadhar = (invoice: Invoice): string => {
   const match = invoice.notes?.match(/\b\d{12}\b/);
-  if (match) return match[0];
-  const seed = invoice.customerName + (invoice.customerPhone || '858328240534');
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
+  if (match) {
+    const aadhar = match[0];
+    return `XXXX XXXX ${aadhar.slice(-4)}`;
   }
-  const absHash = Math.abs(hash).toString();
-  return (absHash + "858328240534").substring(0, 12);
-};
-
-const encodeAadhar = (aadhar: string) => {
-  return aadhar;
+  return '-';
 };
 
 const formatPhone = (phone: string) => {
@@ -75,7 +68,7 @@ const getSimpleReceiptNo = (invoice: Invoice) => {
   return "2";
 };
 
-const formatStayDate = (dateStr: string, isCheckOut = false) => {
+const formatStayDate = (dateStr: string, isCheckOut = false, settings?: SystemSettings) => {
   if (!dateStr) return '';
   if (dateStr.includes('at')) return dateStr;
   
@@ -88,9 +81,9 @@ const formatStayDate = (dateStr: string, isCheckOut = false) => {
       const formattedDate = `${year}-${month}-${day}`;
       
       if (isCheckOut) {
-        return `${formattedDate} (Exp) at 01:55 (Exp)`;
+        return `${formattedDate} at ${settings?.defaultcheckouttime || '11:00'}`;
       } else {
-        return `${formattedDate} at 07:30`;
+        return `${formattedDate} at ${settings?.defaultcheckintime || '12:00'}`;
       }
     }
   } catch (e) {
@@ -153,7 +146,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
   };
 
   const cgstRate = invoice.subtotal > 0 ? ((invoice.cgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.cgstPercentage.toString();
-  const sgstRate = invoice.subtotal > 0 ? ((invoice.sgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.sgstPercentage.toString();
+  const sgstRate = invoice.subtotal > 0 ? ((invoice.sgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.sgstpercentage.toString();
 
   return (
     <div 
@@ -228,11 +221,11 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
           </div>
           <div className="grid grid-cols-2">
             <span className="font-bold text-black">Check-In:</span>
-            <span className="text-right text-slate-800 font-medium">{formatStayDate(invoice.checkInDate, false)}</span>
+            <span className="text-right text-slate-800 font-medium">{formatStayDate(invoice.checkInDate, false, settings)}</span>
           </div>
           <div className="grid grid-cols-2">
             <span className="font-bold text-black">Check-Out:</span>
-            <span className="text-right text-slate-800 font-medium">{formatStayDate(invoice.checkOutDate, true)}</span>
+            <span className="text-right text-slate-800 font-medium">{formatStayDate(invoice.checkOutDate, true, settings)}</span>
           </div>
         </div>
 
@@ -255,7 +248,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
           </div>
           <div className="grid grid-cols-2">
             <span className="font-bold text-black">Aadhar Number:</span>
-            <span className="text-right text-slate-800 font-medium">{encodeAadhar(getAadharNumber(invoice))}</span>
+            <span className="text-right text-slate-800 font-medium">{getMaskedAadhar(invoice)}</span>
           </div>
         </div>
 

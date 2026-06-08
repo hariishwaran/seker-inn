@@ -176,6 +176,17 @@ div[id^="room-card-"]:hover {
   }
 }
 
+@keyframes pulse-booked-shadow {
+  0%, 100% {
+    border-color: rgba(139, 92, 246, 0.15);
+    box-shadow: 0 4px 18px -4px rgba(0, 0, 0, 0.4), 0 0 0px 0px rgba(139, 92, 246, 0);
+  }
+  50% {
+    border-color: rgba(139, 92, 246, 0.35);
+    box-shadow: 0 4px 24px -2px rgba(139, 92, 246, 0.15), 0 0 8px 1px rgba(139, 92, 246, 0.12);
+  }
+}
+
 @keyframes pulse-maintenance-shadow {
   0%, 100% {
     border-color: rgba(245, 158, 11, 0.15);
@@ -193,6 +204,10 @@ div[id^="room-card-"]:hover {
 
 .pulse-occupied {
   animation: pulse-occupied-shadow 3s ease-in-out infinite !important;
+}
+
+.pulse-booked {
+  animation: pulse-booked-shadow 3s ease-in-out infinite !important;
 }
 
 .pulse-cleaning {

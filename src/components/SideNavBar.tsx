@@ -69,9 +69,12 @@ export default function SideNavBar({
         <div className={`flex items-center mb-10 transition-all duration-300 ${
           isCollapsed ? 'md:justify-center md:px-0 gap-0' : 'gap-3 px-6'
         } px-6`}>
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl shadow-lg shadow-indigo-500/30 flex items-center justify-center flex-shrink-0">
-            <div className="w-4 h-4 bg-white/20 rounded-sm rotate-45"></div>
-          </div>
+          {/* Logo icon — always visible */}
+          <img
+            src="/logo.png"
+            alt="Sekar Inn Logo"
+            className="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-lg"
+          />
           {!isCollapsed ? (
             <div className="animate-[fadeIn_0.2s_ease-out] whitespace-nowrap overflow-hidden ml-3">
               <span className="text-xl font-bold tracking-tight text-white font-display">SEKAR INN</span>

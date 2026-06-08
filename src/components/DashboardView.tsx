@@ -4,7 +4,7 @@
  */
 
 import { Room, Invoice } from '../types';
-import { Bed, CheckCircle, RefreshCw, AlertTriangle, Building, TrendingUp } from 'lucide-react';
+import { Bed, CheckCircle, RefreshCw, AlertTriangle, Building, Calendar } from 'lucide-react';
 
 interface DashboardViewProps {
   rooms: Room[];
@@ -17,16 +17,25 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
   // Compute metrics
   const totalRoomsCount = rooms.length;
   const occupiedCount = rooms.filter(r => r.status === 'occupied').length;
+  const bookedCount = rooms.filter(r => r.status === 'booked').length;
   const vacantCount = rooms.filter(r => r.status === 'vacant').length;
   const cleaningCount = rooms.filter(r => r.status === 'cleaning').length;
   const maintenanceCount = rooms.filter(r => r.status === 'maintenance').length;
   const occupancyRate = totalRoomsCount > 0 ? Math.round((occupiedCount / totalRoomsCount) * 100) : 0;
 
   // Revenue metrics from paid invoice histories
-  const paidInvoicesTotal = invoices.filter(inv => inv.status === 'Paid').reduce((acc, current) => acc + current.subtotal, 0);
+  const paidInvoicesTotal = invoices.filter(inv => inv.status === 'Paid').reduce((acc, current) => acc + current.grandTotal, 0);
 
   // Active maintenance list
   const activeMaintenanceRooms = rooms.filter(r => r.status === 'maintenance');
+
+  // Today's date logic for checkouts
+  const today = new Date().toISOString().split('T')[0];
+  const upcomingCheckouts = rooms.filter(
+    r => r.status === 'occupied' && r.checkOutDate && r.checkOutDate.startsWith(today)
+  );
+
+  const draftInvoices = invoices.filter(inv => inv.status === 'Draft');
 
   return (
     <div className="space-y-6" id="dashboard-view">
@@ -43,7 +52,7 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
       </div>
 
       {/* Metrics Bento Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* Occupancy card */}
         <div className="glass-panel p-5 rounded-2xl shadow-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
           <div className="flex justify-between items-start">
@@ -52,13 +61,26 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
           </div>
           <div className="flex items-baseline gap-2 mt-3">
             <span className="text-3xl font-semibold text-white font-display">{occupancyRate}%</span>
-            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-0.5">
-              <TrendingUp className="h-3.5 w-3.5" /> +4.2%
-            </span>
           </div>
           <p className="text-xs text-white/50 mt-2">{occupiedCount} rooms currently occupied</p>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5 mt-4">
             <div className="bg-gradient-to-r from-indigo-500 to-indigo-400 h-full transition-all duration-300" style={{ width: `${occupancyRate}%` }}></div>
+          </div>
+        </div>
+
+        {/* Upcoming Bookings card */}
+        <div className="glass-panel p-5 rounded-2xl shadow-lg relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold text-white/40 uppercase tracking-wider">Upcoming Bookings</span>
+            <Calendar className="h-5 w-5 text-violet-400" />
+          </div>
+          <div className="flex items-baseline gap-2 mt-3">
+            <span className="text-3xl font-semibold text-white font-display">{bookedCount}</span>
+            <span className="text-xs text-white/40">/ {totalRoomsCount} Total</span>
+          </div>
+          <p className="text-xs text-white/50 mt-2">Future check-ins reserved</p>
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5">
+            <div className="bg-violet-500 h-full" style={{ width: `${(bookedCount / totalRoomsCount) * 100}%` }}></div>
           </div>
         </div>
 
@@ -155,7 +177,37 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
               Go to Invoices
             </button>
           </div>
-        </div>
+
+          {/* Upcoming Checkouts & Auto-Drafts */}
+          {(upcomingCheckouts.length > 0 || draftInvoices.length > 0) && (
+            <div className="mt-6 border-t border-white/10 pt-6">
+              <h3 className="font-semibold text-white text-base font-display flex items-center gap-2 mb-4">
+                <AlertTriangle className="h-4 w-4 text-amber-400" /> Action Required: Checkouts & Drafts
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {upcomingCheckouts.map(room => (
+                  <div key={`checkout-${room.id}`} className="bg-white/5 border border-amber-500/30 p-3 rounded-xl flex justify-between items-center cursor-pointer hover:bg-white/10" onClick={() => onSelectRoom(room.id)}>
+                    <div>
+                      <p className="text-xs font-bold text-white">Room {room.id} <span className="text-[10px] text-white/50 font-normal ml-1">({room.guestName})</span></p>
+                      <p className="text-[10px] text-amber-300 mt-0.5">Scheduled for checkout today</p>
+                    </div>
+                    <span className="bg-amber-500/20 text-amber-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Due</span>
+                  </div>
+                ))}
+                
+                {draftInvoices.map(inv => (
+                  <div key={`draft-${inv.id}`} className="bg-white/5 border border-indigo-500/30 p-3 rounded-xl flex justify-between items-center cursor-pointer hover:bg-white/10" onClick={() => setActiveTab('billing')}>
+                    <div>
+                      <p className="text-xs font-bold text-white">Room {inv.roomNumber} <span className="text-[10px] text-white/50 font-normal ml-1">({inv.customerName})</span></p>
+                      <p className="text-[10px] text-indigo-300 mt-0.5">Auto-drafted Invoice</p>
+                    </div>
+                    <span className="bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Draft</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </div>
 
         {/* Maintenance holds checklist list */}
         <div className="glass-panel p-6 rounded-2xl shadow-lg lg:col-span-4 flex flex-col">

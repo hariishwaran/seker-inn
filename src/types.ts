@@ -7,7 +7,7 @@ export interface Room {
   id: string; // e.g., "101"
   floor: number; // 1, 2
   roomType: string; // e.g., "Triple Room", "Double Room", "Four Sharing", "Queen Suite (5 sharing)", "King Suite (6 sharing)", "10 Sharing", "Driver Room (triple)"
-  status: 'vacant' | 'occupied' | 'cleaning' | 'maintenance';
+  status: 'vacant' | 'occupied' | 'booked' | 'cleaning' | 'maintenance';
   isAC: boolean;
   basePrice: number;
   extraBedPrice?: number; // always 500
@@ -56,5 +56,7 @@ export interface SystemSettings {
   phone: string;
   gstin: string;
   cgstPercentage: number;
-  sgstPercentage: number;
+  sgstpercentage: number;
+  defaultcheckintime: string; // e.g., "12:00"
+  defaultcheckouttime: string; // e.g., "11:00"
 }

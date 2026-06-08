@@ -6,6 +6,7 @@
 import { useState, FormEvent } from 'react';
 import { Room } from '../types';
 import { Plus, X, Search, Calendar, User, Minus } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface RoomManagementViewProps {
   rooms: Room[];
@@ -65,9 +66,22 @@ export default function RoomManagementView({
     if (!quickCheckInRoom || !onUpdateRoom) return;
 
     if (!quickGuestName.trim()) {
-      alert("Please provide a valid guest name.");
+      toast.error("Please provide a valid guest name.");
       return;
     }
+
+    if (!quickCheckInDate || !quickCheckOutDate) {
+      toast.error("Please provide both check-in and check-out dates.");
+      return;
+    }
+
+    if (new Date(quickCheckOutDate) <= new Date(quickCheckInDate)) {
+      toast.error("Check-out date must be after check-in date.");
+      return;
+    }
+
+    // Determine if future booking (check-in > today)
+    const isFutureBooking = quickCheckInDate && new Date(quickCheckInDate) > new Date();
 
     // Compute stay amount (1 night minimum)
     let amount = quickCheckInRoom.basePrice || 2500;
@@ -86,7 +100,7 @@ export default function RoomManagementView({
 
     const updatedRoom: Room = {
       ...quickCheckInRoom,
-      status: 'occupied',
+      status: isFutureBooking ? 'booked' : 'occupied',
       guestName: quickGuestName.trim(),
       guestId: quickGuestId.trim(),
       checkInDate: quickCheckInDate,
@@ -101,6 +115,7 @@ export default function RoomManagementView({
 
   // Counts computed dynamically
   const vacantCount = rooms.filter(r => r.status === 'vacant').length;
+  const bookedCount = rooms.filter(r => r.status === 'booked').length;
   const occupiedCount = rooms.filter(r => r.status === 'occupied').length;
   const cleaningCount = rooms.filter(r => r.status === 'cleaning').length;
   const maintenanceCount = rooms.filter(r => r.status === 'maintenance').length;
@@ -147,6 +162,12 @@ export default function RoomManagementView({
             Vacant
           </span>
         );
+      case 'booked':
+        return (
+          <span className="bg-violet-500/10 text-violet-300 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border border-violet-500/25">
+            Booked
+          </span>
+        );
       case 'occupied':
         return (
           <span className="bg-amber-500/10 text-amber-300 text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full border border-[#ffa200]/25">
@@ -172,6 +193,8 @@ export default function RoomManagementView({
     switch (status) {
       case 'vacant':
         return 'bg-emerald-400';
+      case 'booked':
+        return 'bg-violet-500';
       case 'occupied':
         return 'bg-[#ffa200]';
       case 'cleaning':
@@ -217,6 +240,10 @@ export default function RoomManagementView({
           <div className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 px-3.5 py-1.5 rounded-xl border border-emerald-500/20 shadow-sm text-xs font-semibold">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
             <span>Available ({vacantCount})</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-violet-500/10 text-violet-300 px-3.5 py-1.5 rounded-xl border border-violet-500/25 shadow-sm text-xs font-semibold">
+            <span className="w-2.5 h-2.5 rounded-full bg-violet-500"></span>
+            <span>Booked ({bookedCount})</span>
           </div>
           <div className="flex items-center gap-1.5 bg-[#ffa200]/10 text-amber-300 px-3.5 py-1.5 rounded-xl border border-[#ffa200]/25 shadow-sm text-xs font-semibold">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ffa200]"></span>
@@ -275,6 +302,7 @@ export default function RoomManagementView({
                 {floorRooms.map((room) => {
                   const pulseClass = 
                     room.status === 'vacant' ? 'pulse-vacant' :
+                    room.status === 'booked' ? 'pulse-booked' :
                     room.status === 'occupied' ? 'pulse-occupied' :
                     room.status === 'cleaning' ? 'pulse-cleaning' :
                     room.status === 'maintenance' ? 'pulse-maintenance' : '';
@@ -326,12 +354,29 @@ export default function RoomManagementView({
                           ) : null}
                         </div>
                       )}
+
+                      {room.status === 'booked' && (
+                        <div>
+                          <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Upcoming Booking</p>
+                          <p className="text-sm font-semibold text-white/95 line-clamp-1">{room.guestName}</p>
+                          <div className="flex items-center gap-2 mt-1 text-[10px] text-white/50 font-mono">
+                            <span>In: {room.checkInDate || 'N/A'}</span>
+                            <span className="text-white/20">|</span>
+                            <span>Out: {room.checkOutDate || 'N/A'}</span>
+                          </div>
+                          {room.extraBedsCount && room.extraBedsCount > 0 ? (
+                            <span className="text-[9px] bg-indigo-500/15 border border-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-semibold mt-1 inline-block">
+                              +{room.extraBedsCount} Extra Bed
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
                       
                       {room.status === 'vacant' && (
-                        <div className="flex justify-between items-end">
-                          <div className="opacity-40">
+                        <div className="flex flex-wrap justify-between items-end gap-2">
+                          <div className="opacity-40 min-w-0 flex-1">
                             <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Guest</p>
-                            <p className="text-sm font-semibold text-white/95">Vacant</p>
+                            <p className="text-sm font-semibold text-white/95 truncate">Vacant</p>
                           </div>
                           <button
                             type="button"
@@ -339,7 +384,7 @@ export default function RoomManagementView({
                               e.stopPropagation();
                               handleOpenQuickCheckIn(room);
                             }}
-                            className="text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500 text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg border border-indigo-500/20 hover:border-indigo-500 transition-all cursor-pointer md:opacity-0 group-hover:opacity-100 focus:opacity-100 opacity-100 flex items-center gap-1"
+                            className="text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500 text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg border border-indigo-500/20 hover:border-indigo-500 transition-all cursor-pointer md:opacity-0 group-hover:opacity-100 focus:opacity-100 opacity-100 flex items-center gap-1 whitespace-nowrap flex-shrink-0"
                             id={`btn-quick-check-in-${room.id}`}
                           >
                             <span>Quick Check-in</span>
@@ -479,11 +524,15 @@ export default function RoomManagementView({
                 type="button"
                 onClick={() => {
                   if (!newRoomId) {
-                    alert('Please specify a valid Room ID.');
+                    toast.error('Please specify a valid Room ID.');
                     return;
                   }
                   if (rooms.some(r => r.id === newRoomId)) {
-                    alert(`Room ${newRoomId} already exists!`);
+                    toast.error(`Room ${newRoomId} already exists!`);
+                    return;
+                  }
+                  if (newRoomPrice <= 0) {
+                    toast.error('Please enter a valid base price greater than 0.');
                     return;
                   }
                   
