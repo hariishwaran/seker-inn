@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Match rooms collection
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() 
+        && isValidId(roomId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.id == roomId
+        && request.resource.data.floor is int
+        && request.resource.data.roomType is string
+        && request.resource.data.status is string
+        && request.resource.data.isAC is bool
+        && request.resource.data.basePrice is number;
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Match invoices collection
+    match /invoices/{invoiceId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn()
+        && isValidId(invoiceId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.id == invoiceId
+        && request.resource.data.customerName is string
+        && request.resource.data.customerEmail is string
+        && request.resource.data.roomNumber is string
+        && request.resource.data.grandTotal is number
+        && request.resource.data.status is string;
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Match settings collection
+    match /settings/{userId} {
+      allow read, write: if isSignedIn() && userId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Sekar Inn Management Portal",
+  "description": "An elegant, production-ready hospitality portal for Sekar Inn featuring real-time room status tracking, side-drawer guest details, and dynamic itemized invoice generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
