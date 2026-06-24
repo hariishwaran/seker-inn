@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState, useRef } from 'react';
-import { Invoice, SystemSettings } from '../types';
-import PrintableInvoiceContent from './PrintableInvoiceContent';
-import html2canvas from 'html2canvas';
+import React, { useState, useEffect, useRef } from 'react';
+import { toJpeg } from 'html-to-image';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FileDown, Loader2 } from 'lucide-react';
+import { Invoice, SystemSettings } from '../types';
+import PrintableInvoiceContent from './PrintableInvoiceContent';
 
 interface BatchPdfExportProcessProps {
   invoices: Invoice[];
@@ -24,58 +24,55 @@ export default function BatchPdfExportProcess({ invoices, settings, onComplete }
   const processingRef = useRef(-1);
 
   useEffect(() => {
-    if (invoices.length === 0) {
-      onComplete();
-      return;
-    }
-
-    if (currentIndex >= invoices.length) {
-      if (processingRef.current !== currentIndex) {
-        processingRef.current = currentIndex;
-        // All PDFs generated, trigger zip download
-        zip.generateAsync({ type: 'blob' }).then((content) => {
+    const captureCurrentInvoice = async () => {
+      if (currentIndex >= invoices.length) {
+        if (processingRef.current !== currentIndex) {
+          processingRef.current = currentIndex;
+          // All done, generate zip
+          const content = await zip.generateAsync({ type: 'blob' });
           saveAs(content, `Invoices_Export_${new Date().toISOString().split('T')[0]}.zip`);
           onComplete();
-        });
+        }
+        return;
       }
-      return;
-    }
-
-    if (processingRef.current === currentIndex) return;
-    processingRef.current = currentIndex;
-
-    const captureCurrentInvoice = async () => {
-      // Small timeout to allow DOM to paint the current invoice
-      await new Promise((resolve) => setTimeout(resolve, 300));
 
       const element = document.getElementById('hidden-batch-invoice-container');
       if (element) {
         try {
-          const canvas = await html2canvas(element, { 
-            scale: 2, 
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
+          // Add a small delay to ensure React has fully rendered the DOM updates
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Use html-to-image which renders using SVG foreignObject (100% pixel perfect native browser rendering)
+          const imgData = await toJpeg(element, { 
+            quality: 1.0,
+            backgroundColor: '#ffffff',
+            pixelRatio: 2 // Equivalent to scale: 2 for high resolution
           });
-          const imgData = canvas.toDataURL('image/jpeg', 1.0);
+          
+          const imgProps = new Image();
+          imgProps.src = imgData;
+          await new Promise((resolve) => { imgProps.onload = resolve; });
           
           const pdf = new jsPDF('p', 'mm', 'a4');
           const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
           
           pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
           
           // Get current invoice
           const currentInvoice = invoices[currentIndex];
-          const fileName = `${currentInvoice.id.replace(/^#?/, 'INV-')}_${currentInvoice.customerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+          const safeName = (currentInvoice.customerName || 'Guest').replace(/[^a-zA-Z0-9]/g, '_');
+          const safeId = (currentInvoice.id || 'INV').replace(/^#?/, 'INV-');
+          const fileName = `${safeId}_${safeName}.pdf`;
           
-          // Add to zip. output('arraybuffer') is sometimes safer for JSZip
-          zip.file(fileName, pdf.output('arraybuffer'));
+          // Add to zip. output('blob') is recommended for JSZip compatibility
+          zip.file(fileName, pdf.output('blob'));
 
           // Move to next
           setCurrentIndex(prev => prev + 1);
-        } catch (err) {
+        } catch (err: any) {
           console.error("Error capturing invoice PDF", err);
+          zip.file(`ERROR_Invoice_${currentIndex + 1}.txt`, `Failed to generate PDF for invoice index ${currentIndex}.\nError: ${err?.message || err}`);
           // Proceed to next even if one fails
           setCurrentIndex(prev => prev + 1);
         }
@@ -120,15 +117,33 @@ export default function BatchPdfExportProcess({ invoices, settings, onComplete }
       <div 
         style={{
           position: 'absolute',
-          top: '-9999px',
-          left: '-9999px',
+          top: 0,
+          left: 0,
           width: '800px',
-          zIndex: -1000
+          zIndex: -1, // Underneath everything so it doesn't block clicks
+          pointerEvents: 'none'
         }}
       >
+        <style>{`
+          #hidden-batch-invoice-container, #hidden-batch-invoice-container * {
+            color: #000000 !important;
+            border-color: #000000 !important;
+            background-color: transparent !important;
+          }
+          #hidden-batch-invoice-container .bg-\\[\\#c2d69b\\] {
+            background-color: #c2d69b !important;
+          }
+          #hidden-batch-invoice-container .bg-white {
+            background-color: #ffffff !important;
+          }
+          #hidden-batch-invoice-container .text-gray-600 {
+            color: #4b5563 !important;
+          }
+        `}</style>
         <div 
           id="hidden-batch-invoice-container"
-          className="bg-white text-slate-950 w-[800px] p-14 font-sans"
+          className="w-[800px] p-14 font-sans"
+          style={{ backgroundColor: '#ffffff' }}
         >
           <PrintableInvoiceContent invoice={currentInvoice} settings={settings} />
         </div>

@@ -28,7 +28,7 @@ export function convertNumberToWords(amount: number): string {
 
   if (integerPart === 0) return "Zero Rupees";
   const words = helper(integerPart);
-  return words ? `${words} Rupees Only` : "Rupees Only";
+  return words ? `Rs. ${words} Only` : "Rs. Only";
 }
 
 // Mask Aadhar - show only last 4 digits if present
@@ -41,20 +41,12 @@ export const getMaskedAadhar = (invoice: Invoice): string => {
   return '-';
 };
 
-export const formatPhone = (phone: string) => {
-  const cleaned = phone.replace(/[^\d]/g, '');
-  if (cleaned.length >= 10) {
-    return cleaned.slice(-10);
-  }
-  return phone || '8667092950';
-};
-
 export const getPlace = (invoice: Invoice) => {
   if (invoice.notes?.toLowerCase()?.includes('place:')) {
     const match = invoice.notes.match(/place:\s*([a-zA-Z\s]+)/i);
     if (match) return match[1].trim();
   }
-  return "Arumuganeri";
+  return "";
 };
 
 export const getSimpleReceiptNo = (invoice: Invoice) => {
@@ -62,26 +54,19 @@ export const getSimpleReceiptNo = (invoice: Invoice) => {
   if (digitMatch && digitMatch.length > 0) {
     return digitMatch[digitMatch.length - 1];
   }
-  return "2";
+  return invoice.id;
 };
 
-export const formatStayDate = (dateStr: string, isCheckOut = false, settings?: SystemSettings) => {
+export const formatStayDateOnly = (dateStr: string) => {
   if (!dateStr) return '';
-  if (dateStr.includes('at')) return dateStr;
-  
+  if (dateStr.includes('at')) return dateStr.split(' at')[0];
   try {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
-      const formattedDate = `${day}/${month}/${year}`;
-      
-      if (isCheckOut) {
-        return `${formattedDate} at ${settings?.defaultcheckouttime || '11:00'}`;
-      } else {
-        return `${formattedDate} at ${settings?.defaultcheckintime || '12:00'}`;
-      }
+      return `${day}-${month}-${year}`;
     }
   } catch (e) {
     // ignore
@@ -89,192 +74,183 @@ export const formatStayDate = (dateStr: string, isCheckOut = false, settings?: S
   return dateStr;
 };
 
-export const getNoOfPersons = (invoice: Invoice) => {
-  if (invoice.numberOfPeople) {
-    return invoice.numberOfPeople.toString();
-  }
-  const match = invoice.notes?.match(/(\d+)\s*(?:person|guest|people)/i);
-  return match ? match[1] : "2";
+export const formatStayTime = (dateStr: string, isCheckOut = false, settings?: SystemSettings) => {
+  if (!dateStr) return '';
+  if (dateStr.includes('at')) return dateStr.split(' at')[1].trim();
+  
+  return isCheckOut ? (settings?.defaultcheckouttime || '11:00') : (settings?.defaultcheckintime || '12:00');
 };
 
 export const findRentPerDay = (invoice: Invoice) => {
+  if (!invoice.lineItems) return (invoice.subtotal / (invoice.totalNights || 1));
   const stayItem = invoice.lineItems.find(item => 
-    item.description.toLowerCase().includes('stay') || 
-    item.description.toLowerCase().includes('room')
+    item.description?.toLowerCase().includes('stay') || 
+    item.description?.toLowerCase().includes('room')
   );
   return stayItem ? stayItem.unitPrice : (invoice.subtotal / (invoice.totalNights || 1));
 };
 
-export const getExtraBedsInfo = (invoice: Invoice) => {
-  const extraBedItem = invoice.lineItems.find(item => 
-    item.description.toLowerCase().includes('bed') || 
-    item.description.toLowerCase().includes('extra')
-  );
-  if (extraBedItem) {
-    return `${extraBedItem.qty} (Rs. ${extraBedItem.total})`;
-  }
-  return "0 (Rs. 0)";
-};
-
-export const getAdvancePaid = (invoice: Invoice) => {
-  const match = invoice.notes?.match(/advance(?:\spaid)?:?\s*(?:Rs\.?\s*)?(\d+(?:\.\d+)?)/i);
-  return match ? parseFloat(match[1]) : 0;
-};
-
 export default function PrintableInvoiceContent({ invoice, settings }: PrintableInvoiceContentProps) {
-  const cgstRate = invoice.subtotal > 0 ? ((invoice.cgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.cgstPercentage.toString();
-  const sgstRate = invoice.subtotal > 0 ? ((invoice.sgst / invoice.subtotal) * 100).toFixed(1).replace('.0', '') : settings.sgstpercentage.toString();
+  const cgstRate = invoice.subtotal > 0 ? parseFloat(((invoice.cgst / invoice.subtotal) * 100).toFixed(1)) : settings.cgstPercentage;
+  const sgstRate = invoice.subtotal > 0 ? parseFloat(((invoice.sgst / invoice.subtotal) * 100).toFixed(1)) : settings.sgstpercentage;
+  const totalTaxRate = (cgstRate + sgstRate).toFixed(2);
+
+  const emptyRows = Array.from({ length: 4 });
 
   return (
-    <>
-      {/* Centered Receipt Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-extrabold tracking-wide text-black uppercase mb-1">
-          SEKAR INN
-        </h1>
-        <div className="text-xs md:text-sm text-slate-800 space-y-0.5 font-medium leading-relaxed">
-          {settings.address ? (
-            settings.address.split(',').map((part, index) => (
-              <p key={index} className={index === 1 ? "uppercase font-semibold" : ""}>{part.trim()}</p>
-            ))
-          ) : (
-            <>
-              <p>Flat No.: 3</p>
-              <p className="uppercase font-semibold">LAKSHMIMANAGARAM MIDDLE STREET</p>
-              <p>Arumuganeri</p>
-              <p>Thoothukudi | Tamil Nadu | 628202</p>
-            </>
-          )}
-          {settings.phone && <p>Phone: {settings.phone}</p>}
-          <p className="font-bold text-black pt-1">GSTIN: {settings.gstin || '33KKRPS8566Q1ZK'}</p>
-        </div>
-        
-        <h2 className="text-base md:text-lg font-bold text-black mt-6">
-          Receipt / Invoice
-        </h2>
+    <div className="border border-black text-xs w-full bg-white text-black" style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.4' }}>
+      {/* Header Row */}
+      <div className="flex justify-between bg-[#c2d69b] border-b border-black p-2 font-bold">
+        <span>Page No. 1 of 1</span>
+        <span className="text-sm font-extrabold uppercase mt-0.5">Hotel Bill</span>
+        <span>Original Copy</span>
       </div>
 
-      {/* Section 1: Basic Stay Details */}
-      <div className="space-y-1.5 text-xs md:text-sm">
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Receipt No:</span>
-          <span className="text-right text-slate-800 font-medium">{getSimpleReceiptNo(invoice)}</span>
+      {/* Hotel Info & Invoice Details */}
+      <div className="flex border-b border-black">
+        <div className="w-[60%] border-r border-black p-2 space-y-2">
+           <h2 className="text-lg font-bold">Hotel Name: SEKAR INN</h2>
+           <div className="flex gap-2">
+             <span className="font-bold">Address - </span>
+             <span>{settings.address || "Lakshmimanagaram Middle Street, Arumuganeri, Thoothukudi | Tamil Nadu | 628202"}</span>
+           </div>
+           <div><b>Phone No:</b> {settings.phone || "+91 8667092950"} | <b>Email:</b> sekarinn@example.com</div>
+           <div><b>GSTIN -</b> {settings.gstin || '33KKRPS8566Q1ZK'} | <b>PAN -</b> XXXXXXXXXXXXX</div>
         </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Check-In:</span>
-          <span className="text-right text-slate-800 font-medium">{formatStayDate(invoice.checkInDate, false, settings)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Check-Out:</span>
-          <span className="text-right text-slate-800 font-medium">{formatStayDate(invoice.checkOutDate, true, settings)}</span>
-        </div>
-      </div>
-
-      {/* Dashed separator */}
-      <div className="border-t-[1.5px] border-dashed border-slate-400 my-4"></div>
-
-      {/* Section 2: Guest Details */}
-      <div className="space-y-1.5 text-xs md:text-sm">
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Customer Name:</span>
-          <span className="text-right text-slate-800 font-medium">{invoice.customerName}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Mobile:</span>
-          <span className="text-right text-slate-800 font-medium">{formatPhone(invoice.customerPhone)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Place:</span>
-          <span className="text-right text-slate-800 font-medium">{getPlace(invoice)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Aadhar Number:</span>
-          <span className="text-right text-slate-800 font-medium">{getMaskedAadhar(invoice)}</span>
-        </div>
-        {invoice.customerGst && (
-          <div className="grid grid-cols-2">
-            <span className="font-bold text-black">GSTIN:</span>
-            <span className="text-right text-slate-800 font-medium">{invoice.customerGst}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Dashed separator */}
-      <div className="border-t-[1.5px] border-dashed border-slate-400 my-4"></div>
-
-      {/* Section 3: Room/Charges Details */}
-      <div className="space-y-1.5 text-xs md:text-sm">
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Room No:</span>
-          <span className="text-right text-slate-800 font-medium">{invoice.roomNumber}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">No. of Persons:</span>
-          <span className="text-right text-slate-800 font-medium">{getNoOfPersons(invoice)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Stay Duration:</span>
-          <span className="text-right text-slate-800 font-medium">{invoice.totalNights} Days</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Rent per Day:</span>
-          <span className="text-right text-slate-800 font-medium">Rs. {findRentPerDay(invoice)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Extra Beds:</span>
-          <span className="text-right text-slate-800 font-medium">{getExtraBedsInfo(invoice)}</span>
+        <div className="w-[40%] flex flex-col">
+           <div className="flex border-b border-black flex-1">
+              <div className="w-1/2 border-r border-black p-1.5 px-2">
+                <div className="font-bold">Invoice Number</div>
+                <div>{getSimpleReceiptNo(invoice)}</div>
+              </div>
+              <div className="w-1/2 p-1.5 px-2">
+                <div className="font-bold">Invoice Date</div>
+                <div>{formatStayDateOnly(invoice.date)}</div>
+              </div>
+           </div>
+           <div className="flex border-b border-black flex-1">
+              <div className="w-1/2 border-r border-black p-1.5 px-2">
+                <div className="font-bold">Place of Supply</div>
+                <div>33 - Tamil Nadu</div>
+              </div>
+              <div className="w-1/2 p-1.5 px-2">
+                 <div className="font-bold">Due date</div>
+                 <div>{formatStayDateOnly(invoice.checkOutDate)}</div>
+              </div>
+           </div>
+           <div className="p-1.5 px-2 flex-1">
+              <div className="font-bold">Reverse Charge</div>
+              <div>No</div>
+           </div>
         </div>
       </div>
 
-      {/* Dashed separator */}
-      <div className="border-t-[1.5px] border-dashed border-slate-400 my-4"></div>
-
-      {/* Section 4: Billing Summary */}
-      <div className="space-y-1.5 text-xs md:text-sm">
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Subtotal:</span>
-          <span className="text-right text-slate-800 font-medium">Rs. {invoice.subtotal.toFixed(2)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">CGST ({cgstRate}%):</span>
-          <span className="text-right text-slate-800 font-medium">Rs. {invoice.cgst.toFixed(2)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">SGST ({sgstRate}%):</span>
-          <span className="text-right text-slate-800 font-medium">Rs. {invoice.sgst.toFixed(2)}</span>
-        </div>
+      {/* Bill To */}
+      <div className="border-b border-black p-2 space-y-1">
+        <div className="font-bold text-base mb-1">Bill To</div>
+        <div><b>Name -</b> {invoice.customerName}</div>
+        <div><b>Phone No -</b> {invoice.customerPhone}</div>
+        <div><b>Email ID -</b> {invoice.customerEmail}</div>
+        <div><b>Aadhar No -</b> {getMaskedAadhar(invoice)}</div>
       </div>
 
-      {/* Dashed separator */}
-      <div className="border-t-[1.5px] border-dashed border-slate-400 my-4"></div>
+      {/* Table */}
+      <table className="w-full text-center border-collapse">
+        <thead>
+           <tr className="border-b border-black font-bold bg-white">
+              <th className="border-r border-black p-1.5 w-[8%]">Room No</th>
+              <th className="border-r border-black p-1.5 w-[22%]">Name</th>
+              <th className="border-r border-black p-1.5 w-[14%]">Check In</th>
+              <th className="border-r border-black p-1.5 w-[14%]">Check Out</th>
+              <th className="border-r border-black p-1.5 w-[10%]">No of Days</th>
+              <th className="border-r border-black p-1.5 w-[10%]">Price/Day</th>
+              <th className="border-r border-black p-1.5 w-[10%]">Tax %</th>
+              <th className="p-1.5 w-[12%]">Amount (₹)</th>
+           </tr>
+        </thead>
+        <tbody>
+           <tr className="align-top border-b-0">
+              <td className="border-r border-black p-1.5">{invoice.roomNumber}</td>
+              <td className="border-r border-black p-1.5 text-center">Room Rent</td>
+              <td className="border-r border-black p-1.5">
+                <div>{formatStayDateOnly(invoice.checkInDate)}</div>
+                <div className="text-[10px] text-gray-600">{formatStayTime(invoice.checkInDate, false, settings)}</div>
+              </td>
+              <td className="border-r border-black p-1.5">
+                <div>{formatStayDateOnly(invoice.checkOutDate)}</div>
+                <div className="text-[10px] text-gray-600">{formatStayTime(invoice.checkOutDate, true, settings)}</div>
+              </td>
+              <td className="border-r border-black p-1.5">{invoice.totalNights}</td>
+              <td className="border-r border-black p-1.5">{findRentPerDay(invoice).toFixed(2)}</td>
+              <td className="border-r border-black p-1.5">{totalTaxRate}</td>
+              <td className="p-1.5">{(invoice.subtotal).toFixed(2)}</td>
+           </tr>
+           {/* Add a few empty rows to simulate the space in the image */}
+           {emptyRows.map((_, i) => (
+             <tr key={i} className="align-top border-b-0">
+               <td className="border-r border-black p-1.5 h-6"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="p-1.5"></td>
+             </tr>
+           ))}
+           <tr className="align-top border-b border-black h-20">
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="border-r border-black p-1.5"></td>
+               <td className="p-1.5"></td>
+           </tr>
 
-      {/* Section 5: Settlement */}
-      <div className="space-y-1.5 text-xs md:text-sm">
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Final Total:</span>
-          <span className="text-right text-slate-800 font-medium">Rs. {invoice.grandTotal.toFixed(2)}</span>
-        </div>
-        <div className="grid grid-cols-2">
-          <span className="font-bold text-black">Advance Paid:</span>
-          <span className="text-right text-slate-800 font-medium">Rs. {getAdvancePaid(invoice).toFixed(2)}</span>
-        </div>
+           {/* Rounded Off Row */}
+           <tr className="border-b border-black">
+              <td colSpan={7} className="border-r border-black p-1.5 text-left pl-2">Rounded Off (+)</td>
+              <td className="p-1.5 text-right pr-2">+ 0.00</td>
+           </tr>
+
+           {/* Total Row */}
+           <tr className="border-b border-black font-bold text-sm">
+              <td colSpan={7} className="border-r border-black p-1.5 text-left pl-2">Total</td>
+              <td className="p-1.5 text-right pr-2">{invoice.grandTotal.toFixed(2)}</td>
+           </tr>
+        </tbody>
+      </table>
+
+      {/* Amount in Words */}
+      <div className="border-b border-black p-1.5 font-bold pl-2 text-sm">
+         {convertNumberToWords(invoice.grandTotal)}
       </div>
 
-      {/* Dashed separator */}
-      <div className="border-t-[1.5px] border-dashed border-slate-400 my-4"></div>
-
-      {/* Section 6: Balance Due */}
-      <div className="grid grid-cols-2 text-sm md:text-base font-extrabold text-black">
-        <span>Balance Due:</span>
-        <span className="text-right">Rs. {(invoice.grandTotal - getAdvancePaid(invoice)).toFixed(2)}</span>
+      {/* Footer Section */}
+      <div className="flex">
+         <div className="w-1/2 border-r border-black p-2 space-y-1">
+            <div className="font-bold text-sm">Terms and Conditions</div>
+            <ol className="list-decimal pl-5 space-y-0.5 mt-1 font-semibold text-xs pb-10">
+               <li>Deposited your Key card at the receptionist</li>
+               <li>A minimum advance payment of 50% of the total booking amount is required for confirmation</li>
+               <li>Charges for any property damage will be added to the bill.</li>
+            </ol>
+         </div>
+         <div className="w-1/4 border-r border-black p-2 flex flex-col justify-end font-bold text-sm text-center pb-4">
+            <div>Billing Officer's Signature</div>
+         </div>
+         <div className="w-1/4 p-2 flex flex-col justify-end font-bold text-sm text-center pb-4">
+            <div>Guest's Signature</div>
+         </div>
       </div>
 
-      {/* Section 7: Footer */}
-      <div className="text-center mt-12 mb-6">
-        <p className="text-xs md:text-sm italic font-medium text-slate-800">
-          Thank you for staying with us at Sekar Inn!
-        </p>
+      {/* Green Footer */}
+      <div className="bg-[#c2d69b] text-center font-bold p-2 text-xs uppercase text-black border-t border-black">
+         THANK YOU FOR YOUR VISIT, PLEASE VISIT US AGAIN !!!!
       </div>
-    </>
+    </div>
   );
 }
+
