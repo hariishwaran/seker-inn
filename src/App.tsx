@@ -155,8 +155,6 @@ export default function App() {
             console.error("[SekarInn] Rooms snapshot error:", error);
             setDbError(error.message || String(error));
             setRooms(initialRooms.map(r => ({ ...r })));
-          } finally {
-            setIsLoading(false);
           }
         };
 
@@ -229,35 +227,16 @@ export default function App() {
           }
         };
 
-        await fetchRooms();
-        await fetchInvoices();
-        await fetchSettings();
+        await Promise.all([fetchRooms(), fetchInvoices(), fetchSettings()]);
+        setIsLoading(false);
 
-        // Optional: setup real-time channels here if needed
-        const channels = supabase.channel('custom-all-channel')
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'rooms' },
-            (payload) => {
-              fetchRooms();
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'invoices' },
-            (payload) => {
-              fetchInvoices();
-            }
-          )
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'settings' },
-            (payload) => {
-              fetchSettings();
-            }
-          )
+        const channel = supabase.channel('sekarinn-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRooms())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchInvoices())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => fetchSettings())
           .subscribe();
 
+        return () => { supabase.removeChannel(channel); };
       } else {
         setIsLoggedIn(false);
         setUserEmail('');
@@ -311,51 +290,56 @@ export default function App() {
           
           if (!isNaN(checkoutDate.getTime()) && now > checkoutDate) {
              // AUTO DRAFT INVOICE
-             const generatedId = `INV-${Date.now()}`;
-             
+             const generatedId = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
              // Safely calculate nights
              const inDate = new Date(room.checkInDate || '');
              const diff = checkoutDate.getTime() - (isNaN(inDate.getTime()) ? checkoutDate.getTime() : inDate.getTime());
              const totalNights = Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
-             
+
+             // Build line items first so totals are correct
+             const autoLineItems = [
+               {
+                 id: 'li-1',
+                 description: `Room Charges - ${room.roomType}`,
+                 qty: totalNights,
+                 unitPrice: room.basePrice,
+                 total: totalNights * room.basePrice
+               }
+             ];
+             if (room.extraBedsCount && room.extraBedsCount > 0) {
+               autoLineItems.push({
+                 id: 'li-2',
+                 description: 'Extra Bed Charges',
+                 qty: totalNights * room.extraBedsCount,
+                 unitPrice: room.extraBedPrice || 500,
+                 total: totalNights * room.extraBedsCount * (room.extraBedPrice || 500)
+               });
+             }
+             const autoSubtotal = autoLineItems.reduce((sum, li) => sum + li.total, 0);
+             const autoCgst = autoSubtotal * (settings.cgstPercentage / 100);
+             const autoSgst = autoSubtotal * (settings.sgstpercentage / 100);
+
              const newInvoice: Invoice = {
-                id: generatedId,
-                customerName: room.guestName || 'Unknown Guest',
-                customerEmail: '',
-                customerPhone: '',
-                customerGst: undefined,
+               id: generatedId,
+               customerName: room.guestName || 'Unknown Guest',
+               customerEmail: '',
+               customerPhone: '',
+               customerGst: undefined,
                roomNumber: room.id,
                roomType: room.roomType,
                checkInDate: room.checkInDate || '',
                checkOutDate: room.checkOutDate || '',
-                date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-               totalNights: totalNights,
-               lineItems: [
-                 {
-                   id: 'li-1',
-                   description: `Room Charges - ${room.roomType}`,
-                   qty: totalNights,
-                   unitPrice: room.basePrice,
-                   total: totalNights * room.basePrice
-                 }
-               ],
+               date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+               totalNights,
+               lineItems: autoLineItems,
                notes: 'Auto-drafted by system due to late checkout.',
-               subtotal: room.amountDue || 0,
-               cgst: (room.amountDue || 0) * (settings.cgstPercentage / 100),
-               sgst: (room.amountDue || 0) * (settings.sgstpercentage / 100),
-               grandTotal: (room.amountDue || 0) + ((room.amountDue || 0) * (settings.cgstPercentage / 100)) + ((room.amountDue || 0) * (settings.sgstpercentage / 100)),
+               subtotal: autoSubtotal,
+               cgst: autoCgst,
+               sgst: autoSgst,
+               grandTotal: autoSubtotal + autoCgst + autoSgst,
                status: 'Draft'
              };
-             
-             if (room.extraBedsCount && room.extraBedsCount > 0) {
-                newInvoice.lineItems.push({
-                   id: 'li-2',
-                   description: 'Extra Bed Charges',
-                   qty: totalNights * room.extraBedsCount,
-                   unitPrice: room.extraBedPrice || 500,
-                   total: totalNights * room.extraBedsCount * (room.extraBedPrice || 500)
-                });
-             }
 
              try {
                 const { data: { user } } = await supabase.auth.getUser();
@@ -562,11 +546,8 @@ export default function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
     try {
-      const encodePercentage = (val: number) => Math.round(val * 10000);
       const dbSettings = {
         ...updatedSettings,
-        cgstPercentage: encodePercentage(updatedSettings.cgstPercentage),
-        sgstpercentage: encodePercentage(updatedSettings.sgstpercentage),
         id: 'default',
         user_id: user.id
       };
@@ -1168,20 +1149,21 @@ function LoginView({
         await onSignUp(email, password);
       }
     } catch (err: any) {
-      const msg = err.message || '';
-      console.error(err);
-      if (msg.includes('auth/operation-not-allowed')) {
-        setError('OPERATION_NOT_ALLOWED');
-      } else if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('auth/user-not-found')) {
-        setError('Invalid email or password.');
-      } else if (msg.includes('auth/email-already-in-use')) {
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('email not confirmed')) {
+        setError('Please confirm your email address before logging in.');
+      } else if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials') || msg.includes('wrong password')) {
+        setError('Invalid email or password. Please try again.');
+      } else if (msg.includes('user already registered') || msg.includes('already been registered')) {
         setError('This email is already registered. Try logging in instead.');
-      } else if (msg.includes('auth/weak-password')) {
-        setError('The password is too weak. Please choose a stronger password.');
-      } else if (msg.includes('auth/invalid-email')) {
+      } else if (msg.includes('password should be')) {
+        setError('Password must be at least 6 characters long.');
+      } else if (msg.includes('unable to validate email address') || msg.includes('invalid email')) {
         setError('Please enter a valid email address.');
+      } else if (msg.includes('signups not allowed') || msg.includes('not allowed')) {
+        setError('OPERATION_NOT_ALLOWED');
       } else {
-        setError(msg || 'An error occurred during authentication.');
+        setError(err.message || 'An error occurred during authentication.');
       }
     } finally {
       setIsSubmitting(false);
@@ -1194,9 +1176,7 @@ function LoginView({
     try {
       await onGoogleLogin();
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setError(err.message || 'Google Sign-In failed.');
-      }
+      setError(err.message || 'Google Sign-In failed.');
     } finally {
       setIsGoogleSubmitting(false);
     }

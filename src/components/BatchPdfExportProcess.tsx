@@ -43,20 +43,23 @@ export default function BatchPdfExportProcess({ invoices, settings, onComplete }
           await new Promise(resolve => setTimeout(resolve, 300));
 
           // Use html-to-image which renders using SVG foreignObject (100% pixel perfect native browser rendering)
-          const imgData = await toJpeg(element, { 
+          const imgData = await toJpeg(element, {
             quality: 1.0,
             backgroundColor: '#ffffff',
-            pixelRatio: 2 // Equivalent to scale: 2 for high resolution
+            pixelRatio: 2,
+            width: element.scrollWidth,
+            height: element.scrollHeight,
           });
-          
+
           const imgProps = new Image();
           imgProps.src = imgData;
           await new Promise((resolve) => { imgProps.onload = resolve; });
-          
-          const pdf = new jsPDF('p', 'mm', 'a4');
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-          
+
+          // A4 in mm: 210 x 297. Use content height to avoid blank space at bottom.
+          const pdfWidth = 210;
+          const pdfHeight = (imgProps.height / imgProps.width) * pdfWidth;
+          const pdf = new jsPDF('p', 'mm', [pdfWidth, pdfHeight]);
+
           pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
           
           // Get current invoice
@@ -114,14 +117,15 @@ export default function BatchPdfExportProcess({ invoices, settings, onComplete }
       </div>
 
       {/* Hidden Render Container */}
-      <div 
+      <div
         style={{
-          position: 'absolute',
+          position: 'fixed',
           top: 0,
-          left: 0,
-          width: '800px',
-          zIndex: -1, // Underneath everything so it doesn't block clicks
-          pointerEvents: 'none'
+          left: '-900px',
+          width: '794px',
+          zIndex: -1,
+          pointerEvents: 'none',
+          overflow: 'visible'
         }}
       >
         <style>{`
@@ -140,10 +144,10 @@ export default function BatchPdfExportProcess({ invoices, settings, onComplete }
             color: #4b5563 !important;
           }
         `}</style>
-        <div 
+        <div
           id="hidden-batch-invoice-container"
-          className="w-[800px] p-14 font-sans"
-          style={{ backgroundColor: '#ffffff' }}
+          className="font-sans"
+          style={{ backgroundColor: '#ffffff', width: '794px' }}
         >
           <PrintableInvoiceContent invoice={currentInvoice} settings={settings} />
         </div>

@@ -44,7 +44,7 @@ export default function SideNavBar({
       )}
 
       <aside 
-        className={`fixed left-0 top-0 h-full bg-[#050510]/95 backdrop-blur-2xl text-white flex flex-col py-8 border-r border-white/10 transition-all duration-300 z-55 ${
+        className={`fixed left-0 top-0 h-full bg-[#050510]/95 backdrop-blur-2xl text-white flex flex-col py-8 border-r border-white/10 transition-all duration-300 z-50 ${
           isCollapsed ? 'md:w-[80px]' : 'md:w-[260px]'
         } ${
           isMobileOpen ? 'w-[260px] translate-x-0' : 'w-[260px] -translate-x-full md:translate-x-0'

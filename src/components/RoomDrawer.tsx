@@ -78,6 +78,27 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
   if (!room) return null;
 
   const handleSave = () => {
+    if ((status === 'occupied' || status === 'booked') && !guestName.trim()) {
+      toast.error('Guest name is required for occupied/booked rooms.');
+      return;
+    }
+    if ((status === 'occupied' || status === 'booked') && !checkInDate) {
+      toast.error('Check-in date is required.');
+      return;
+    }
+    if ((status === 'occupied' || status === 'booked') && !checkOutDate) {
+      toast.error('Check-out date is required.');
+      return;
+    }
+    if ((status === 'occupied' || status === 'booked') && checkInDate && checkOutDate && new Date(checkOutDate) <= new Date(checkInDate)) {
+      toast.error('Check-out date must be after check-in date.');
+      return;
+    }
+    if (status === 'maintenance' && !maintenanceIssue.trim()) {
+      toast.error('Please describe the maintenance issue.');
+      return;
+    }
+
     const updatedRoom: Room = {
       ...room,
       status,

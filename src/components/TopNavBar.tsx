@@ -41,8 +41,9 @@ export default function TopNavBar({
   };
 
   const getInitial = () => {
-    if (userDisplayName && userDisplayName !== 'User') return userDisplayName[0].toUpperCase();
-    return userEmail[0].toUpperCase() || 'U';
+    if (userDisplayName && userDisplayName.trim()) return userDisplayName[0].toUpperCase();
+    if (userEmail && userEmail.trim()) return userEmail[0].toUpperCase();
+    return 'U';
   };
 
   return (
