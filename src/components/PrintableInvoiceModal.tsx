@@ -19,12 +19,12 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
 
   useEffect(() => {
     const handleResize = () => {
-      const targetWidth = 840;
-      const targetHeight = 1160;
-      const wScale = (window.innerWidth - 48) / targetWidth;
-      const hScale = (window.innerHeight - 80) / targetHeight;
-      const computedScale = Math.min(wScale, hScale);
-      setScale(Math.max(0.4, Math.min(1, computedScale)));
+      // A4 at 96dpi: 794×1123px
+      const a4W = 794;
+      const a4H = 1123;
+      const wScale = window.innerWidth / a4W;
+      const hScale = window.innerHeight / a4H;
+      setScale(Math.max(0.3, Math.min(wScale, hScale)));
     };
 
     handleResize();
@@ -39,12 +39,10 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
   };
 
   const handleSystemPrint = () => {
-    // Opens the native OS system print dialog (bypasses Chrome's Save as PDF default)
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { window.print(); return; }
     const contentEl = document.getElementById('printable-sheet-a4');
     if (!contentEl) { w.close(); window.print(); return; }
-    // Collect all <style> and <link rel="stylesheet"> from current page
     const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
       .map(el => el.outerHTML)
       .join('\n');
@@ -54,52 +52,44 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
     setTimeout(() => { w.print(); w.close(); }, 600);
   };
 
+  const scaledH = Math.round(1123 * scale);
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#020205]/80 backdrop-blur-md flex justify-center items-start overflow-y-auto py-10 px-4"
+      className="fixed inset-0 z-50 bg-[#020205]/90 backdrop-blur-md flex justify-center items-center overflow-hidden"
       id="printable-invoice-modal-overlay"
     >
-      {/* A4 Container Wrapper */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '800px',
-          height: `${1100 * scale}px`,
-          position: 'relative',
-          display: 'flex',
-          justifyContent: 'center'
-        }}
-        className="transition-all duration-300 print-wrapper"
+      {/* Close button — top-right corner */}
+      <button
+        onClick={onClose}
+        className="no-print absolute top-4 right-4 z-[110] text-white/70 hover:text-white transition-all p-2 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 rounded-full h-10 w-10 flex items-center justify-center shadow-lg"
+        title="Close"
+        id="btn-close-printable-invoice"
       >
+        <X className="h-5 w-5" />
+      </button>
+
+      {/* Scroll container so content is reachable on very small screens */}
+      <div className="print-wrapper w-full h-full overflow-auto flex justify-center items-start">
+        {/* A4 sheet scaled to fill the viewport */}
         <div
-          className="relative bg-white text-slate-950 shadow-2xl rounded-sm w-full p-8 md:p-14 border border-slate-200 print-area animate-[fadeIn_0.3s_ease-out] font-sans"
+          className="relative bg-white text-slate-950 shadow-2xl font-sans"
           id="printable-sheet-a4"
           style={{
             '--invoice-scale': scale,
+            width: '794px',
+            height: `${scaledH}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
-            position: 'absolute',
-            top: 0
+            marginBottom: `${scaledH - 1123}px`,
           } as CSSProperties}
         >
-          {/* Close Button on dialog */}
-          <button
-            onClick={onClose}
-            className="no-print absolute -right-12 top-0 text-white hover:text-white/80 transition-all p-2 cursor-pointer bg-white/5 border border-white/10 rounded-full backdrop-blur-xl h-10 w-10 flex items-center justify-center shadow-lg"
-            title="Close Dialog"
-            id="btn-close-printable-invoice"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
           <PrintableInvoiceContent invoice={invoice} settings={settings} />
-
         </div>
       </div>
 
       {/* Floating Action Buttons */}
-      <div className="no-print fixed bottom-10 right-10 z-[99] flex flex-col items-end gap-3">
-        {/* System Print Dialog — sends straight to printer */}
+      <div className="no-print fixed bottom-8 right-8 z-[99] flex flex-col items-end gap-3">
         <button
           onClick={handleSystemPrint}
           className="flex items-center gap-2.5 bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/10 text-sm font-semibold"
@@ -110,7 +100,6 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
           Print to Printer
         </button>
 
-        {/* Browser Print / Save as PDF */}
         <button
           onClick={handlePrint}
           className="flex items-center gap-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/10 text-sm font-semibold"
