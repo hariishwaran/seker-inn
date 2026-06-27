@@ -59,85 +59,63 @@
 }
 
 @media print {
-  /* ── Page setup ── */
-  @page {
-    size: A4 portrait;
-    margin: 10mm 12mm;
-  }
-
-  /* ── Force exact colour rendering (backgrounds, borders) ── */
-  #printable-invoice-modal-overlay,
-  #printable-invoice-modal-overlay * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-
-  /* ── Hide the entire app chrome ── */
+  /* Hide all main application containers except the print overlay itself */
   #app-canvas-container > *:not(#printable-invoice-modal-overlay) {
     display: none !important;
   }
-
-  /* ── Hide UI-only elements (close btn, print FAB) ── */
+  
   .no-print {
     display: none !important;
   }
 
   body, html {
+    background-color: #ffffff !important;
     background: #ffffff !important;
     color: #000000 !important;
-    margin: 0 !important;
-    padding: 0 !important;
   }
 
-  /* ── Strip the modal overlay to a plain white container ── */
+  /* Reset modal overlay container for complete visibility in A4 print layout */
   #printable-invoice-modal-overlay {
-    all: unset !important;
-    display: block !important;
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
-    max-width: none !important;
     height: auto !important;
-    background: #ffffff !important;
+    background: none !important;
+    background-color: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
-  }
-
-  /* ── Strip the scale-wrapper ── */
-  .print-wrapper {
-    all: unset !important;
     display: block !important;
-    width: 100% !important;
-    max-width: none !important;
-    height: auto !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: visible !important;
   }
 
-  /* ── Reset the A4 sheet element ── */
   #printable-sheet-a4 {
-    all: unset !important;
-    display: block !important;
     transform: none !important;
-    position: static !important;
+    transform-origin: initial !important;
+    position: relative !important;
     width: 100% !important;
-    max-width: none !important;
-    height: auto !important;
+    max-width: 100% !important;
     min-height: auto !important;
+    border: none !important;
+    box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
+    left: 0 !important;
+    top: 0 !important;
     background: #ffffff !important;
     color: #000000 !important;
-    overflow: visible !important;
-    font-family: Arial, sans-serif !important;
   }
 
-  /* ── Prevent table rows from being cut across pages ── */
-  #printable-sheet-a4 tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
+  .print-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: relative !important;
+    display: block !important;
   }
 }
 

@@ -100,7 +100,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
   return (
     <div className="border border-black text-xs w-full bg-white text-black" style={{ fontFamily: 'Arial, sans-serif', lineHeight: '1.4' }}>
       {/* Header Row */}
-      <div className="flex justify-between border-b border-black p-2 font-bold" style={{ backgroundColor: '#c2d69b' }}>
+      <div className="flex justify-between bg-[#c2d69b] border-b border-black p-2 font-bold">
         <span>Page No. 1 of 1</span>
         <span className="text-sm font-extrabold uppercase mt-0.5">Hotel Bill</span>
         <span>Original Copy</span>
@@ -247,7 +247,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
       </div>
 
       {/* Green Footer */}
-      <div className="text-center font-bold p-2 text-xs uppercase text-black border-t border-black" style={{ backgroundColor: '#c2d69b' }}>
+      <div className="bg-[#c2d69b] text-center font-bold p-2 text-xs uppercase text-black border-t border-black">
          THANK YOU FOR YOUR VISIT, PLEASE VISIT US AGAIN !!!!
       </div>
     </div>
