@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, CSSProperties } from 'react';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, FileDown } from 'lucide-react';
 import { Invoice, SystemSettings } from '../types';
 import PrintableInvoiceContent from './PrintableInvoiceContent';
 
@@ -19,14 +19,12 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
 
   useEffect(() => {
     const handleResize = () => {
-      // A4 at 96dpi: 794×1123px
       const a4W = 794;
       const a4H = 1123;
       const wScale = window.innerWidth / a4W;
       const hScale = window.innerHeight / a4H;
       setScale(Math.max(0.3, Math.min(wScale, hScale)));
     };
-
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -34,22 +32,99 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
 
   if (!invoice) return null;
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleSystemPrint = () => {
-    const w = window.open('', '_blank', 'width=900,height=700');
-    if (!w) { window.print(); return; }
+  /**
+   * Opens a clean new window with just the invoice content and the
+   * browser's native print dialog.  Works for both "Print to Printer"
+   * and "Save as PDF" (the user picks in the dialog).
+   *
+   * Key details:
+   *  - Collects <style> tags (Vite dev injects these) AND <link> tags
+   *    with their ABSOLUTE href (link.href is always absolute in the DOM).
+   *  - Adds @page A4 + print-color-adjust: exact so colours render.
+   *  - An inline <script> fires window.print() after 'load' so CSS is
+   *    definitely applied before the dialog opens.
+   */
+  const printInvoice = (autoClose = true) => {
     const contentEl = document.getElementById('printable-sheet-a4');
-    if (!contentEl) { w.close(); window.print(); return; }
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(el => el.outerHTML)
-      .join('\n');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice</title>${styles}<style>body{margin:0;padding:12mm 10mm;background:#fff;font-family:Arial,sans-serif;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}@page{size:A4 portrait;margin:10mm 12mm;}</style></head><body>${contentEl.innerHTML}</body></html>`);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); w.close(); }, 600);
+    if (!contentEl) return;
+
+    const popup = window.open('', '_blank', 'width=900,height=750');
+    if (!popup) {
+      // Fallback: browser blocked the popup — use main-page print
+      window.print();
+      return;
+    }
+
+    // Collect all stylesheets. For <link> elements use .href which is
+    // always the absolute URL regardless of how it was written in HTML.
+    const styleTags = Array.from(
+      document.querySelectorAll<HTMLElement>('style, link[rel="stylesheet"]')
+    ).map(el => {
+      if (el.tagName === 'LINK') {
+        return `<link rel="stylesheet" href="${(el as HTMLLinkElement).href}">`;
+      }
+      return el.outerHTML;
+    }).join('\n');
+
+    popup.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invoice – ${invoice.id}</title>
+  ${styleTags}
+  <style>
+    /* ── Page layout ── */
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm;
+    }
+
+    /* ── Force colour rendering in print ── */
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      box-sizing: border-box;
+    }
+
+    /* ── Clean slate ── */
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      color: #000000;
+      font-family: Arial, sans-serif;
+    }
+
+    /* ── Invoice root ── */
+    #invoice-print-root {
+      width: 100%;
+    }
+
+    /* ── Table rows never split across pages ── */
+    tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+  </style>
+</head>
+<body>
+  <div id="invoice-print-root">${contentEl.innerHTML}</div>
+  <script>
+    // Wait for all linked CSS to finish loading before opening dialog
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        window.print();
+        ${autoClose ? 'setTimeout(function(){ window.close(); }, 500);' : ''}
+      }, 350);
+    });
+  </script>
+</body>
+</html>`);
+
+    popup.document.close();
+    popup.focus();
   };
 
   const scaledH = Math.round(1123 * scale);
@@ -59,7 +134,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
       className="fixed inset-0 z-50 bg-[#020205]/90 backdrop-blur-md flex justify-center items-center overflow-hidden"
       id="printable-invoice-modal-overlay"
     >
-      {/* Close button — top-right corner */}
+      {/* Close button */}
       <button
         onClick={onClose}
         className="no-print absolute top-4 right-4 z-[110] text-white/70 hover:text-white transition-all p-2 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 rounded-full h-10 w-10 flex items-center justify-center shadow-lg"
@@ -69,9 +144,9 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
         <X className="h-5 w-5" />
       </button>
 
-      {/* Scroll container so content is reachable on very small screens */}
+      {/* Scroll container — lets content be reachable on very small screens */}
       <div className="print-wrapper w-full h-full overflow-auto flex justify-center items-start">
-        {/* A4 sheet scaled to fill the viewport */}
+        {/* A4 sheet, scaled to fill the viewport */}
         <div
           className="relative bg-white text-slate-950 shadow-2xl font-sans"
           id="printable-sheet-a4"
@@ -81,6 +156,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
             height: `${scaledH}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
+            // Compensate for the visual space lost by scaling
             marginBottom: `${scaledH - 1123}px`,
           } as CSSProperties}
         >
@@ -88,25 +164,16 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
         </div>
       </div>
 
-      {/* Floating Action Buttons */}
+      {/* Floating action buttons */}
       <div className="no-print fixed bottom-8 right-8 z-[99] flex flex-col items-end gap-3">
+        {/* Save as PDF */}
         <button
-          onClick={handleSystemPrint}
-          className="flex items-center gap-2.5 bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/10 text-sm font-semibold"
-          title="Print directly to your printer"
-          id="btn-system-print"
-        >
-          <Printer className="h-4 w-4" />
-          Print to Printer
-        </button>
-
-        <button
-          onClick={handlePrint}
+          onClick={() => printInvoice(true)}
           className="flex items-center gap-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/10 text-sm font-semibold"
-          title="Save as PDF or print via browser dialog"
+          title="Save invoice as PDF"
           id="btn-print-floating"
         >
-          <Printer className="h-4 w-4" />
+          <FileDown className="h-4 w-4" />
           Save as PDF
         </button>
       </div>
