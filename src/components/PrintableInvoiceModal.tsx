@@ -131,22 +131,22 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#020205]/90 backdrop-blur-md flex justify-center items-center overflow-hidden"
+      className="fixed inset-0 z-50 bg-white flex justify-center items-center overflow-hidden"
       id="printable-invoice-modal-overlay"
     >
       {/* Close button */}
       <button
         onClick={onClose}
-        className="no-print absolute top-4 right-4 z-[110] text-white/70 hover:text-white transition-all p-2 cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 rounded-full h-10 w-10 flex items-center justify-center shadow-lg"
+        className="no-print absolute top-4 right-4 z-[110] text-slate-600 hover:text-slate-900 transition-all p-2 cursor-pointer bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-full h-10 w-10 flex items-center justify-center shadow"
         title="Close"
         id="btn-close-printable-invoice"
       >
         <X className="h-5 w-5" />
       </button>
 
-      {/* Scroll container — lets content be reachable on very small screens */}
-      <div className="print-wrapper w-full h-full overflow-auto flex justify-center items-start">
-        {/* A4 sheet, scaled to fill the viewport */}
+      {/* Scroll container */}
+      <div className="print-wrapper w-full h-full overflow-auto flex justify-center items-start py-10 px-8">
+        {/* A4 sheet with white padding border */}
         <div
           className="relative bg-white text-slate-950 shadow-2xl font-sans"
           id="printable-sheet-a4"
@@ -156,8 +156,10 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
             height: `${scaledH}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
-            // Compensate for the visual space lost by scaling
             marginBottom: `${scaledH - 1123}px`,
+            padding: '32px',
+            boxSizing: 'border-box',
+            border: '1px solid #e2e8f0',
           } as CSSProperties}
         >
           <PrintableInvoiceContent invoice={invoice} settings={settings} />
@@ -169,7 +171,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
         {/* Save as PDF */}
         <button
           onClick={() => printInvoice(true)}
-          className="flex items-center gap-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-white/10 text-sm font-semibold"
+          className="flex items-center gap-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-indigo-400/30 text-sm font-semibold"
           title="Save invoice as PDF"
           id="btn-print-floating"
         >
