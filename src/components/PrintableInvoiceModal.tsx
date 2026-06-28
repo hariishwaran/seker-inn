@@ -131,13 +131,14 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-white flex justify-center items-center overflow-hidden"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-start overflow-y-auto"
       id="printable-invoice-modal-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* Close button */}
       <button
         onClick={onClose}
-        className="no-print absolute top-4 right-4 z-[110] text-slate-600 hover:text-slate-900 transition-all p-2 cursor-pointer bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-full h-10 w-10 flex items-center justify-center shadow"
+        className="no-print fixed top-4 right-4 z-[110] text-white/70 hover:text-white transition-all p-2 cursor-pointer bg-white/10 hover:bg-white/20 border border-white/20 rounded-full h-10 w-10 flex items-center justify-center shadow-lg backdrop-blur-md"
         title="Close"
         id="btn-close-printable-invoice"
       >
@@ -145,10 +146,10 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
       </button>
 
       {/* Scroll container */}
-      <div className="print-wrapper w-full h-full overflow-auto flex justify-center items-start py-10 px-8">
-        {/* A4 sheet with white padding border */}
+      <div className="print-wrapper flex justify-center py-10 px-4 min-h-full">
+        {/* A4 sheet with white padding */}
         <div
-          className="relative bg-white text-slate-950 shadow-2xl font-sans"
+          className="relative bg-white text-slate-950 font-sans rounded-sm"
           id="printable-sheet-a4"
           style={{
             '--invoice-scale': scale,
@@ -157,9 +158,9 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
             marginBottom: `${scaledH - 1123}px`,
-            padding: '32px',
+            padding: '28px',
             boxSizing: 'border-box',
-            border: '1px solid #e2e8f0',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
           } as CSSProperties}
         >
           <PrintableInvoiceContent invoice={invoice} settings={settings} />
@@ -167,7 +168,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
       </div>
 
       {/* Floating action buttons */}
-      <div className="no-print fixed bottom-8 right-8 z-[99] flex flex-col items-end gap-3">
+      <div className="no-print fixed bottom-8 right-8 z-[110] flex flex-col items-end gap-3">
         {/* Save as PDF */}
         <button
           onClick={() => printInvoice(true)}
