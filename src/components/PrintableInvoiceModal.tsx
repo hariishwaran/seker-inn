@@ -154,7 +154,6 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
           style={{
             '--invoice-scale': scale,
             width: '794px',
-            height: `${scaledH}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
             marginBottom: `${scaledH - 1123}px`,
