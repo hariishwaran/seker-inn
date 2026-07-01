@@ -291,7 +291,7 @@ export default function App() {
           
           if (!isNaN(checkoutDate.getTime()) && now > checkoutDate) {
              // AUTO DRAFT INVOICE
-             const generatedId = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+             const generatedId = `SI-${invoices.filter(i => !i.id.startsWith('TAX-')).length + 1}`;
 
              // Safely calculate nights
              const inDate = new Date(room.checkInDate || '');
@@ -701,6 +701,7 @@ export default function App() {
                 rooms={rooms}
                 prefillData={prefillInvoice}
                 editingInvoice={editingInvoice}
+                nextInvoiceNumber={invoices.filter(i => !i.id.startsWith('TAX-')).length + 1}
                 onSaveInvoice={(invoice) => {
                   handleSaveInvoice(invoice);
                   setEditingInvoice(null);

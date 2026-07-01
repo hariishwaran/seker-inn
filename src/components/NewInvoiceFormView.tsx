@@ -25,9 +25,10 @@ interface NewInvoiceFormViewProps {
   prefillData?: PrefillInvoiceData | null;
   editingInvoice?: Invoice | null;
   settings: SystemSettings;
+  nextInvoiceNumber?: number;
 }
 
-export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, prefillData, editingInvoice, settings }: NewInvoiceFormViewProps) {
+export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, prefillData, editingInvoice, settings, nextInvoiceNumber }: NewInvoiceFormViewProps) {
   const itemsCatalog = [
     { label: 'Bedsheet(Small)', defaultPrice: settings.bedsheetSmallPrice ?? 150 },
     { label: 'Bedsheet(Large)', defaultPrice: settings.bedsheetLargePrice ?? 250 },
@@ -277,7 +278,7 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
     }
 
     const newInvoiceRecord: Invoice = {
-      id: editingInvoice ? editingInvoice.id : `SI-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: editingInvoice ? editingInvoice.id : `SI-${nextInvoiceNumber ?? 1}`,
       customerName,
       customerPhone: customerPhone || '',
       customerEmail: customerEmail || '',

@@ -50,10 +50,13 @@ export const getPlace = (invoice: Invoice) => {
 };
 
 export const getSimpleReceiptNo = (invoice: Invoice) => {
+  // Strip TAX- prefix for tax copies, then SI- prefix
+  const base = invoice.id.replace(/^TAX-/, '').replace(/^SI-/, '');
+  // New sequential format: SI-1, SI-2 … → base is "1", "2" …
+  if (/^\d+$/.test(base)) return base;
+  // Legacy format: SI-2026-5942 → last digit group
   const digitMatch = invoice.id.match(/\d+/g);
-  if (digitMatch && digitMatch.length > 0) {
-    return digitMatch[digitMatch.length - 1];
-  }
+  if (digitMatch && digitMatch.length > 0) return digitMatch[digitMatch.length - 1];
   return invoice.id;
 };
 
