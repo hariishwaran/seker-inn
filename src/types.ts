@@ -35,7 +35,7 @@ export interface InvoiceLineItem {
 }
 
 export interface Invoice {
-  id: string; // e.g., "SI-2023-8942"
+  id: string; // e.g., "SI-2023-8942" for billing, "TAX-SI-2023-8942" for tax copy
   customerName: string;
   customerEmail: string;
   customerPhone: string;

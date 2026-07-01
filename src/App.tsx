@@ -344,8 +344,10 @@ export default function App() {
              try {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
+                   const taxCopy = { ...newInvoice, id: `TAX-${generatedId}` };
                    await supabase.from('invoices').insert({ ...newInvoice, user_id: user.id });
-                   setInvoices(prev => [newInvoice, ...prev]);
+                   await supabase.from('invoices').insert({ ...taxCopy, user_id: user.id });
+                   setInvoices(prev => [newInvoice, taxCopy, ...prev]);
                    toast.warning(`Room ${room.id} checkout time reached! Draft invoice auto-generated.`, { duration: 8000 });
                 }
              } catch (err) {
@@ -568,9 +570,31 @@ export default function App() {
     if (!user) return;
     try {
       const cleanId = newInvoice.id.replace(/^#/, '');
-      const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id });
-      if (error) throw error;
-      setInvoices(prev => [{ ...newInvoice, id: cleanId }, ...prev.filter(i => i.id !== cleanId)]);
+      const isExisting = invoices.some(i => i.id === cleanId);
+
+      if (isExisting) {
+        // Editing an existing record (billing or tax) — update only that one
+        const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id });
+        if (error) throw error;
+        setInvoices(prev => prev.map(i => i.id === cleanId ? { ...newInvoice, id: cleanId } : i));
+      } else {
+        // Brand-new invoice — create billing copy + independent tax copy
+        const taxId = `TAX-${cleanId}`;
+        const billingRecord = { ...newInvoice, id: cleanId, user_id: user.id };
+        const taxRecord = { ...newInvoice, id: taxId, user_id: user.id };
+        const [r1, r2] = await Promise.all([
+          supabase.from('invoices').insert(billingRecord),
+          supabase.from('invoices').insert(taxRecord),
+        ]);
+        if (r1.error) throw r1.error;
+        if (r2.error) throw r2.error;
+        setInvoices(prev => [
+          { ...newInvoice, id: cleanId },
+          { ...newInvoice, id: taxId },
+          ...prev,
+        ]);
+      }
+
       setActiveTab('billing');
       setPreviewingInvoice({ ...newInvoice, id: cleanId });
     } catch (error: any) {
@@ -636,7 +660,8 @@ export default function App() {
             {activeTab === 'billing' && (
               <BillingInvoicesView
                 rooms={rooms}
-                invoices={invoices}
+                invoices={invoices.filter(i => !i.id.startsWith('TAX-'))}
+                taxInvoices={invoices.filter(i => i.id.startsWith('TAX-'))}
                 settings={settings}
                 onCreateInvoice={(prefill) => {
                   setPrefillInvoice(prefill || null);
@@ -644,6 +669,11 @@ export default function App() {
                   setActiveTab('new-invoice');
                 }}
                 onEditInvoice={(invoice) => {
+                  setEditingInvoice(invoice);
+                  setPrefillInvoice(null);
+                  setActiveTab('new-invoice');
+                }}
+                onEditTaxInvoice={(invoice) => {
                   setEditingInvoice(invoice);
                   setPrefillInvoice(null);
                   setActiveTab('new-invoice');

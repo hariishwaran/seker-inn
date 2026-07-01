@@ -16,6 +16,7 @@ import BatchPdfExportProcess from './BatchPdfExportProcess';
 interface BillingInvoicesViewProps {
   rooms: Room[];
   invoices: Invoice[];
+  taxInvoices: Invoice[];
   settings: SystemSettings;
   onCreateInvoice: (prefill?: {
     roomId?: string;
@@ -25,18 +26,21 @@ interface BillingInvoicesViewProps {
     extraBedsCount?: number;
   }) => void;
   onEditInvoice: (invoice: Invoice) => void;
+  onEditTaxInvoice: (invoice: Invoice) => void;
   onViewInvoice: (invoice: Invoice) => void;
   onDeleteInvoice: (invoiceId: string) => void;
   onUpdateInvoiceStatus: (invoiceId: string, newStatus: Invoice['status']) => void;
 }
 
-export default function BillingInvoicesView({ 
+export default function BillingInvoicesView({
   rooms,
   invoices,
+  taxInvoices,
   settings,
-  onCreateInvoice, 
+  onCreateInvoice,
   onEditInvoice,
-  onViewInvoice, 
+  onEditTaxInvoice,
+  onViewInvoice,
   onDeleteInvoice,
   onUpdateInvoiceStatus
 }: BillingInvoicesViewProps) {
@@ -654,6 +658,99 @@ export default function BillingInvoicesView({
             </div>
           </div>
         </section>
+
+      {/* ==================== TAX FILING REGISTER ==================== */}
+      <section className="glass-panel rounded-2xl shadow-lg border border-white/10 overflow-hidden" id="tax-filing-container">
+        <div className="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white/5 backdrop-blur-md">
+          <div>
+            <h4 className="text-base font-semibold text-white font-display flex items-center gap-2">
+              <FileText className="h-4 w-4 text-violet-400" />
+              Tax Filing Register
+            </h4>
+            <p className="text-[11px] text-white/40 mt-0.5">Editable tax copies of invoices — changes here do not affect the Billing Ledger.</p>
+          </div>
+          <span className="text-[10px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 rounded-lg">
+            {taxInvoices.length} {taxInvoices.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white/5 text-xs font-bold text-white/40 uppercase tracking-widest border-b border-white/5">
+                <th className="px-5 py-3 whitespace-nowrap">Invoice #</th>
+                <th className="px-5 py-3 whitespace-nowrap">Guest</th>
+                <th className="px-5 py-3 whitespace-nowrap">Room</th>
+                <th className="px-5 py-3 whitespace-nowrap">Check-In</th>
+                <th className="px-5 py-3 whitespace-nowrap">Check-Out</th>
+                <th className="px-5 py-3 whitespace-nowrap">Total</th>
+                <th className="px-5 py-3 whitespace-nowrap">Status</th>
+                <th className="px-5 py-3 text-right whitespace-nowrap">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {taxInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-white/30 text-xs">
+                    No tax filing records yet. They are created automatically with each new invoice.
+                  </td>
+                </tr>
+              )}
+              {taxInvoices.map((inv) => (
+                <tr key={inv.id} className="hover:bg-white/5 transition-all duration-150 group">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <span className="font-mono text-[11px] text-violet-300 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-lg">
+                      {inv.id}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 flex items-center justify-center text-[10px] font-black flex-shrink-0">
+                        {getInitials(inv.customerName)}
+                      </div>
+                      <span className="text-sm font-medium text-white/90">{inv.customerName}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-lg bg-indigo-500/15 border border-indigo-500/20 px-2 py-0.5 font-mono text-xs font-bold text-white">
+                        {inv.roomNumber}
+                      </span>
+                      <span className="text-xs text-white/50 hidden sm:block">{inv.roomType}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3 text-xs font-mono text-white/60 whitespace-nowrap">{formatDate(inv.checkInDate)}</td>
+                  <td className="px-5 py-3 text-xs font-mono text-white/60 whitespace-nowrap">{formatDate(inv.checkOutDate)}</td>
+                  <td className="px-5 py-3 text-xs font-bold text-white font-mono whitespace-nowrap">
+                    ₹{inv.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-5 py-3 whitespace-nowrap">{getStatusBadge(inv.status)}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => onViewInvoice(inv)}
+                        className="p-1.5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-lg transition-all text-white/40 hover:text-white cursor-pointer"
+                        title="View / Print"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => onEditTaxInvoice(inv)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500 text-violet-400 hover:text-white text-xs font-bold rounded-lg border border-violet-500/25 transition-all cursor-pointer"
+                        title="Edit tax invoice"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       </div>
   );
 }
