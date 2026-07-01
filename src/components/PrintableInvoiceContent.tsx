@@ -174,7 +174,10 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
         <tbody>
            <tr className="align-top border-b-0">
               <td className="border-r border-black p-1.5">{invoice.roomNumber}</td>
-              <td className="border-r border-black p-1.5 text-center">Room Rent</td>
+              <td className="border-r border-black p-1.5 text-center">
+                <div>Room Rent</div>
+                {invoice.roomType && <div className="text-[10px] text-gray-600">{invoice.roomType}</div>}
+              </td>
               <td className="border-r border-black p-1.5">
                 <div>{formatStayDateOnly(invoice.checkInDate)}</div>
                 <div className="text-[10px] text-gray-600">{formatStayTime(invoice.checkInDate, false, settings)}</div>
