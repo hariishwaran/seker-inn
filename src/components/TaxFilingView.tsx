@@ -8,8 +8,9 @@ import { Invoice, SystemSettings } from '../types';
 import { formatDate } from '../lib/formatDate';
 import {
   Eye, Pencil, Search, Check, AlertTriangle, FileText,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Download, CheckSquare, Square
 } from 'lucide-react';
+import BatchPdfExportProcess from './BatchPdfExportProcess';
 
 interface TaxFilingViewProps {
   billingInvoices: Invoice[];
@@ -22,11 +23,14 @@ interface TaxFilingViewProps {
 export default function TaxFilingView({
   billingInvoices,
   taxInvoices,
+  settings,
   onEditTaxInvoice,
   onViewInvoice,
 }: TaxFilingViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 10;
 
   // For every billing invoice, show the real TAX- copy if it exists,
@@ -47,6 +51,28 @@ export default function TaxFilingView({
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const startIdx = (currentPage - 1) * itemsPerPage;
   const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAll = () => {
+    const allIds = paginated.map(i => i.id);
+    const allSelected = allIds.every(id => selectedIds.has(id));
+    if (allSelected) {
+      const next = new Set(selectedIds);
+      allIds.forEach(id => next.delete(id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      allIds.forEach(id => next.add(id));
+      setSelectedIds(next);
+    }
+  };
+
+  const isPageAllSelected = paginated.length > 0 && paginated.every(i => selectedIds.has(i.id));
 
   const getInitials = (name: string) =>
     name.split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase() || 'G';
@@ -77,6 +103,14 @@ export default function TaxFilingView({
   return (
     <div className="space-y-6" id="tax-filing-view">
 
+      {isExporting && (
+        <BatchPdfExportProcess
+          invoices={taxRows.filter(i => selectedIds.has(i.id))}
+          settings={settings}
+          onComplete={() => { setIsExporting(false); setSelectedIds(new Set()); }}
+        />
+      )}
+
       {/* Header */}
       <section className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -85,9 +119,20 @@ export default function TaxFilingView({
             Editable tax copies of all invoices — changes here never affect the Billing Ledger.
           </p>
         </div>
-        <span className="text-[11px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-2 rounded-xl">
-          {filtered.length} {filtered.length === 1 ? 'record' : 'records'}
-        </span>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <button
+            onClick={() => setIsExporting(true)}
+            disabled={selectedIds.size === 0}
+            className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+            title="Export selected as PDF ZIP"
+          >
+            <Download className="h-4 w-4" />
+            Export {selectedIds.size > 0 ? selectedIds.size : ''} PDFs
+          </button>
+          <span className="text-[11px] font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-2 rounded-xl">
+            {filtered.length} {filtered.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
       </section>
 
       {/* Table card */}
@@ -112,6 +157,11 @@ export default function TaxFilingView({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white/5 text-xs font-bold text-white/40 uppercase tracking-widest border-b border-white/5">
+                <th className="px-4 py-3 whitespace-nowrap">
+                  <button onClick={toggleSelectAll} className="p-1 hover:text-white transition-colors cursor-pointer">
+                    {isPageAllSelected ? <CheckSquare className="h-4 w-4 text-indigo-400" /> : <Square className="h-4 w-4" />}
+                  </button>
+                </th>
                 <th className="px-5 py-3 whitespace-nowrap">Invoice #</th>
                 <th className="px-5 py-3 whitespace-nowrap">Guest</th>
                 <th className="px-5 py-3 whitespace-nowrap">Room</th>
@@ -126,7 +176,7 @@ export default function TaxFilingView({
             <tbody className="divide-y divide-white/5">
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-16 text-white/30 text-xs">
+                  <td colSpan={10} className="text-center py-16 text-white/30 text-xs">
                     {billingInvoices.length === 0
                       ? 'No invoices yet. Create one from the Billing/Invoices tab.'
                       : 'No records match your search.'}
@@ -135,6 +185,11 @@ export default function TaxFilingView({
               )}
               {paginated.map((inv) => (
                 <tr key={inv.id} className="hover:bg-white/5 transition-all duration-150 group">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <button onClick={() => toggleSelect(inv.id)} className="p-1 text-white/50 hover:text-white transition-colors cursor-pointer">
+                      {selectedIds.has(inv.id) ? <CheckSquare className="h-4 w-4 text-indigo-400" /> : <Square className="h-4 w-4" />}
+                    </button>
+                  </td>
                   <td className="px-5 py-3 whitespace-nowrap">
                     <span className="font-mono text-[11px] text-violet-300 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-lg">
                       {inv.id}

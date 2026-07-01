@@ -596,7 +596,8 @@ export default function App() {
         ]);
       }
 
-      setActiveTab('billing');
+      // Return to Tax Filing if we were editing a tax copy
+      setActiveTab(cleanId.startsWith('TAX-') ? 'tax-filing' : 'billing');
       setPreviewingInvoice({ ...newInvoice, id: cleanId });
     } catch (error: any) {
       console.error("Invoice Save Error:", error);
