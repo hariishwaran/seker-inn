@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LayoutDashboard, BedDouble, ReceiptText, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, BedDouble, ReceiptText, Settings, LogOut, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 
 interface SideNavBarProps {
   activeTab: string;
@@ -28,6 +28,7 @@ export default function SideNavBar({
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'rooms', name: 'Room Management', icon: BedDouble },
     { id: 'billing', name: 'Billing/Invoices', icon: ReceiptText },
+    { id: 'tax-filing', name: 'Tax Filing', icon: FileSpreadsheet },
     { id: 'settings', name: 'Settings', icon: Settings },
   ];
 
@@ -92,7 +93,7 @@ export default function SideNavBar({
         <nav className={`flex-1 space-y-1.5 ${isCollapsed ? 'px-2 md:px-2' : 'px-3'} px-3`}>
           {menuItems.map((item) => {
             const IconComponent = item.icon;
-            const isActive = activeTab === item.id || (item.id === 'billing' && activeTab === 'new-invoice');
+            const isActive = activeTab === item.id || (item.id === 'billing' && activeTab === 'new-invoice') || (item.id === 'tax-filing' && activeTab === 'tax-invoice-edit');
             return (
               <button
                 key={item.id}

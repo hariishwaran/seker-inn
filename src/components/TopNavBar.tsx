@@ -33,6 +33,8 @@ export default function TopNavBar({
         return 'Invoices Dashboard';
       case 'new-invoice':
         return 'New Invoice';
+      case 'tax-filing':
+        return 'Tax Filing Register';
       case 'settings':
         return 'Settings & Configuration';
       default:

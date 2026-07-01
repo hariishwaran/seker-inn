@@ -17,6 +17,7 @@ const DashboardView = lazy(() => import('./components/DashboardView'));
 const RoomManagementView = lazy(() => import('./components/RoomManagementView'));
 const BillingInvoicesView = lazy(() => import('./components/BillingInvoicesView'));
 const NewInvoiceFormView = lazy(() => import('./components/NewInvoiceFormView'));
+const TaxFilingView = lazy(() => import('./components/TaxFilingView'));
 
 // Real backend imports (Supabase Auth and Postgres)
 import { supabase, OperationType } from './lib/supabase';
@@ -661,7 +662,7 @@ export default function App() {
               <BillingInvoicesView
                 rooms={rooms}
                 invoices={invoices.filter(i => !i.id.startsWith('TAX-'))}
-                taxInvoices={invoices.filter(i => i.id.startsWith('TAX-'))}
+                taxInvoices={[]}
                 settings={settings}
                 onCreateInvoice={(prefill) => {
                   setPrefillInvoice(prefill || null);
@@ -673,14 +674,24 @@ export default function App() {
                   setPrefillInvoice(null);
                   setActiveTab('new-invoice');
                 }}
+                onEditTaxInvoice={() => {}}
+                onViewInvoice={(invoice) => setPreviewingInvoice(invoice)}
+                onDeleteInvoice={handleDeleteInvoice}
+                onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
+              />
+            )}
+
+            {activeTab === 'tax-filing' && (
+              <TaxFilingView
+                billingInvoices={invoices.filter(i => !i.id.startsWith('TAX-'))}
+                taxInvoices={invoices.filter(i => i.id.startsWith('TAX-'))}
+                settings={settings}
                 onEditTaxInvoice={(invoice) => {
                   setEditingInvoice(invoice);
                   setPrefillInvoice(null);
                   setActiveTab('new-invoice');
                 }}
                 onViewInvoice={(invoice) => setPreviewingInvoice(invoice)}
-                onDeleteInvoice={handleDeleteInvoice}
-                onUpdateInvoiceStatus={handleUpdateInvoiceStatus}
               />
             )}
             
