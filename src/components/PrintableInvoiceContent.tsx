@@ -8,6 +8,7 @@ import { Invoice, SystemSettings } from '../types';
 interface PrintableInvoiceContentProps {
   invoice: Invoice;
   settings: SystemSettings;
+  invoiceNumber?: number;
 }
 
 // Quick numbers-to-words converter for Indian rupee bills (lakhs/crores)
@@ -102,7 +103,7 @@ export const findRentPerDay = (invoice: Invoice) => {
   return stayItem ? stayItem.unitPrice : (invoice.subtotal / (invoice.totalNights || 1));
 };
 
-export default function PrintableInvoiceContent({ invoice, settings }: PrintableInvoiceContentProps) {
+export default function PrintableInvoiceContent({ invoice, settings, invoiceNumber }: PrintableInvoiceContentProps) {
   const cgstRate = invoice.subtotal > 0 ? parseFloat(((invoice.cgst / invoice.subtotal) * 100).toFixed(1)) : settings.cgstPercentage;
   const sgstRate = invoice.subtotal > 0 ? parseFloat(((invoice.sgst / invoice.subtotal) * 100).toFixed(1)) : settings.sgstpercentage;
   const totalTaxRate = (cgstRate + sgstRate).toFixed(2);
@@ -136,7 +137,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
            <div className="flex border-b border-black flex-1">
               <div className="w-1/2 border-r border-black p-1.5 px-2">
                 <div className="font-bold">Invoice Number</div>
-                <div>{getSimpleReceiptNo(invoice)}</div>
+                <div>{invoiceNumber ?? getSimpleReceiptNo(invoice)}</div>
               </div>
               <div className="w-1/2 p-1.5 px-2">
                 <div className="font-bold">Invoice Date</div>

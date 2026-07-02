@@ -12,13 +12,14 @@ interface PrintableInvoiceModalProps {
   invoice: Invoice | null;
   onClose: () => void;
   settings: SystemSettings;
+  invoiceNumber?: number;
 }
 
 const A4_W = 794;   // px at 96dpi
 const A4_H = 1123;  // px at 96dpi
 const PADDING = 28; // white padding inside sheet
 
-export default function PrintableInvoiceModal({ invoice, onClose, settings }: PrintableInvoiceModalProps) {
+export default function PrintableInvoiceModal({ invoice, onClose, settings, invoiceNumber }: PrintableInvoiceModalProps) {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function PrintableInvoiceModal({ invoice, onClose, settings }: Pr
             overflow: 'hidden',
           } as CSSProperties}
         >
-          <PrintableInvoiceContent invoice={invoice} settings={settings} />
+          <PrintableInvoiceContent invoice={invoice} settings={settings} invoiceNumber={invoiceNumber} />
         </div>
       </div>
 

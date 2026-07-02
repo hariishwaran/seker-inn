@@ -829,13 +829,20 @@ export default function App() {
       )}
 
       {/* Modal: Printable Invoice A4 Trigger Overlay */}
-      {previewingInvoice && (
-        <PrintableInvoiceModal 
-          invoice={previewingInvoice}
-          onClose={() => setPreviewingInvoice(null)}
-          settings={settings}
-        />
-      )}
+      {previewingInvoice && (() => {
+        const billingInvoices = invoices.filter(i => !i.id.startsWith('TAX-'));
+        const cleanId = previewingInvoice.id.replace(/^TAX-/, '');
+        const pos = billingInvoices.findIndex(i => i.id === cleanId);
+        const invoiceNumber = pos >= 0 ? pos + 1 : undefined;
+        return (
+          <PrintableInvoiceModal
+            invoice={previewingInvoice}
+            onClose={() => setPreviewingInvoice(null)}
+            settings={settings}
+            invoiceNumber={invoiceNumber}
+          />
+        );
+      })()}
 
     </div>
   );
