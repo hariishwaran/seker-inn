@@ -202,7 +202,7 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
               <td className="border-r border-black p-1.5">{invoice.totalNights}</td>
               <td className="border-r border-black p-1.5">{findRentPerDay(invoice).toFixed(2)}</td>
               <td className="border-r border-black p-1.5">{totalTaxRate}</td>
-              <td className="p-1.5">{(invoice.subtotal).toFixed(2)}</td>
+              <td className="p-1.5">{(findRentPerDay(invoice) * (invoice.totalNights || 1)).toFixed(2)}</td>
            </tr>
            {/* Additional line items */}
            {invoice.lineItems && invoice.lineItems
