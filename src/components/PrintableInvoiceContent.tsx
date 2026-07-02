@@ -77,11 +77,20 @@ export const formatStayDateOnly = (dateStr: string) => {
   return dateStr;
 };
 
+const to12Hour = (time: string): string => {
+  const [hStr, mStr] = time.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${period}`;
+};
+
 export const formatStayTime = (dateStr: string, isCheckOut = false, settings?: SystemSettings) => {
   if (!dateStr) return '';
-  if (dateStr.includes('at')) return dateStr.split(' at')[1].trim();
-  
-  return isCheckOut ? (settings?.defaultcheckouttime || '11:00') : (settings?.defaultcheckintime || '12:00');
+  if (dateStr.includes('at')) return to12Hour(dateStr.split(' at')[1].trim());
+  const raw = isCheckOut ? (settings?.defaultcheckouttime || '11:00') : (settings?.defaultcheckintime || '12:00');
+  return to12Hour(raw);
 };
 
 export const findRentPerDay = (invoice: Invoice) => {
@@ -191,6 +200,22 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
               <td className="border-r border-black p-1.5">{totalTaxRate}</td>
               <td className="p-1.5">{(invoice.subtotal).toFixed(2)}</td>
            </tr>
+           {/* Additional line items */}
+           {invoice.lineItems && invoice.lineItems
+             .filter(item => !item.description?.toLowerCase().includes('stay') && !item.description?.toLowerCase().includes('room rent'))
+             .map((item, i) => (
+               <tr key={`li-${i}`} className="align-top border-b-0">
+                 <td className="border-r border-black p-1.5"></td>
+                 <td className="border-r border-black p-1.5 text-center">{item.description}</td>
+                 <td className="border-r border-black p-1.5"></td>
+                 <td className="border-r border-black p-1.5"></td>
+                 <td className="border-r border-black p-1.5">{item.quantity}</td>
+                 <td className="border-r border-black p-1.5">{item.unitPrice.toFixed(2)}</td>
+                 <td className="border-r border-black p-1.5"></td>
+                 <td className="p-1.5">{item.total.toFixed(2)}</td>
+               </tr>
+             ))
+           }
            {/* Add a few empty rows to simulate the space in the image */}
            {emptyRows.map((_, i) => (
              <tr key={i} className="align-top border-b-0">
