@@ -7,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { Invoice, SystemSettings } from '../types';
 import { formatDate } from '../lib/formatDate';
 import {
-  Eye, Pencil, Search, Check, AlertTriangle, FileText,
+  Eye, Pencil, Trash2, Search, Check, AlertTriangle, FileText,
   ChevronLeft, ChevronRight, Download, CheckSquare, Square
 } from 'lucide-react';
 import BatchPdfExportProcess from './BatchPdfExportProcess';
@@ -18,6 +18,7 @@ interface TaxFilingViewProps {
   settings: SystemSettings;
   onEditTaxInvoice: (invoice: Invoice) => void;
   onViewInvoice: (invoice: Invoice) => void;
+  onDeleteTaxInvoice: (invoiceId: string) => void;
 }
 
 export default function TaxFilingView({
@@ -26,6 +27,7 @@ export default function TaxFilingView({
   settings,
   onEditTaxInvoice,
   onViewInvoice,
+  onDeleteTaxInvoice,
 }: TaxFilingViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -240,6 +242,13 @@ export default function TaxFilingView({
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </button>
+                      <button
+                        onClick={() => onDeleteTaxInvoice(inv.id)}
+                        className="p-1.5 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/25 rounded-lg transition-all text-white/40 hover:text-rose-400 cursor-pointer"
+                        title="Delete tax record"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -285,6 +294,13 @@ export default function TaxFilingView({
                     className="flex items-center gap-1 px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500 text-violet-400 hover:text-white text-xs font-bold rounded-lg border border-violet-500/25 transition-all cursor-pointer"
                   >
                     <Pencil className="h-3.5 w-3.5" />Edit
+                  </button>
+                  <button
+                    onClick={() => onDeleteTaxInvoice(inv.id)}
+                    className="p-1.5 hover:bg-rose-500/20 rounded-lg text-white/40 hover:text-rose-400 cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>

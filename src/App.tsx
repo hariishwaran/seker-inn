@@ -693,6 +693,7 @@ export default function App() {
                   setActiveTab('new-invoice');
                 }}
                 onViewInvoice={(invoice) => setPreviewingInvoice(invoice)}
+                onDeleteTaxInvoice={handleDeleteInvoice}
               />
             )}
             

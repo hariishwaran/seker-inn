@@ -212,7 +212,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
                  <td className="border-r border-black p-1.5 text-center">{item.description}</td>
                  <td className="border-r border-black p-1.5"></td>
                  <td className="border-r border-black p-1.5"></td>
-                 <td className="border-r border-black p-1.5">{item.quantity}</td>
+                 <td className="border-r border-black p-1.5">{item.qty}</td>
                  <td className="border-r border-black p-1.5">{item.unitPrice.toFixed(2)}</td>
                  <td className="border-r border-black p-1.5"></td>
                  <td className="p-1.5">{item.total.toFixed(2)}</td>
