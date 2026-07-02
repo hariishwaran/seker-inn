@@ -121,7 +121,10 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
       {/* Hotel Info & Invoice Details */}
       <div className="flex border-b border-black">
         <div className="w-[60%] border-r border-black p-2 space-y-2">
-           <h2 className="text-lg font-bold">Hotel Name: SEKAR INN</h2>
+           <div className="flex items-center gap-3">
+             <img src="/logo.png" alt="Sekar Inn Logo" className="h-16 w-auto object-contain" />
+             <h2 className="text-lg font-bold">Hotel Name: SEKAR INN</h2>
+           </div>
            <div className="flex gap-2">
              <span className="font-bold">Address - </span>
              <span>{settings.address || "Lakshmimanagaram Middle Street, Arumuganeri, Thoothukudi | Tamil Nadu | 628202"}</span>
