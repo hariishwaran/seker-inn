@@ -244,6 +244,24 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
                <td className="p-1.5"></td>
            </tr>
 
+           {/* Subtotal Row */}
+           <tr className="border-b border-black">
+              <td colSpan={7} className="border-r border-black p-1.5 text-left pl-2">Subtotal</td>
+              <td className="p-1.5 text-right pr-2">{invoice.subtotal.toFixed(2)}</td>
+           </tr>
+
+           {/* CGST Row */}
+           <tr className="border-b border-black">
+              <td colSpan={7} className="border-r border-black p-1.5 text-left pl-2">CGST ({cgstRate}%)</td>
+              <td className="p-1.5 text-right pr-2">{invoice.cgst.toFixed(2)}</td>
+           </tr>
+
+           {/* SGST Row */}
+           <tr className="border-b border-black">
+              <td colSpan={7} className="border-r border-black p-1.5 text-left pl-2">SGST ({sgstRate}%)</td>
+              <td className="p-1.5 text-right pr-2">{invoice.sgst.toFixed(2)}</td>
+           </tr>
+
            {/* Rounded Off Row */}
            <tr className="border-b border-black">
               <td colSpan={7} className="border-r border-black p-1.5 text-left pl-2">Rounded Off (+)</td>
