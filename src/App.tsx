@@ -171,8 +171,8 @@ export default function App() {
             
             if (fetchedInvoices) {
               const formattedInvoices = fetchedInvoices.map((i: any) => {
-                const { user_id: _uid, ...rest } = i;
-                return rest as Invoice;
+                const { user_id: _uid, lineitems, lineItems, ...rest } = i;
+                return { ...rest, lineItems: lineItems ?? lineitems ?? [] } as Invoice;
               });
               formattedInvoices.sort((a, b) => b.id.localeCompare(a.id));
               setInvoices(formattedInvoices);
