@@ -122,9 +122,8 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
       {/* Hotel Info & Invoice Details */}
       <div className="flex border-b border-black">
         <div className="w-[60%] border-r border-black p-2 space-y-2">
-           <div className="flex items-center gap-3">
-             <img src="/logo.png" alt="Sekar Inn Logo" className="h-16 w-auto object-contain" />
-             <h2 className="text-lg font-bold">Hotel Name: SEKAR INN</h2>
+           <div className="flex items-center gap-2">
+             <img src="/logo.png" alt="Sekar Inn Logo" className="h-20 w-auto object-contain" />
            </div>
            <div className="flex gap-2">
              <span className="font-bold">Address - </span>
