@@ -123,7 +123,7 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
       <div className="flex border-b border-black">
         <div className="w-[60%] border-r border-black p-2 space-y-2">
            <div className="flex items-center">
-             <img src="/logo.png" alt="Sekar Inn Logo" className="h-24 w-auto object-contain" />
+             <h2 className="text-2xl font-extrabold uppercase tracking-widest" style={{ fontFamily: 'Georgia, serif', color: '#6B1E1E' }}>SEKAR INN</h2>
            </div>
            <div className="flex gap-2">
              <span className="font-bold">Address - </span>
