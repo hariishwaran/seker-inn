@@ -3,6 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export interface FutureBooking {
+  id: string;
+  guestName: string;
+  guestPhone?: string;
+  checkInDate: string;
+  checkOutDate: string;
+  numberOfPeople?: number;
+  notes?: string;
+}
+
 export interface Room {
   id: string; // e.g., "101"
   floor: number; // 1, 2
@@ -24,6 +34,7 @@ export interface Room {
   maintenancePriority?: 'Low' | 'Medium' | 'High / Urgent';
   maintenanceNotes?: string;
   amountDue?: number;
+  futureBookings?: FutureBooking[];
 }
 
 export interface InvoiceLineItem {

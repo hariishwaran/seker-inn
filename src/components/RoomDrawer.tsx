@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Room, SystemSettings } from '../types';
+import { Room, SystemSettings, FutureBooking } from '../types';
 import { formatDate, formatDateTime } from '../lib/formatDate';
 import { X, User, CheckCircle2, Group, Sparkles, AlertTriangle, Trash2, Plus, Minus, Wind, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,6 +32,9 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
   const [priority, setPriority] = useState<Room['maintenancePriority']>('Low');
   const [notes, setNotes] = useState('');
   const [createInvoiceOnSave, setCreateInvoiceOnSave] = useState(false);
+  const [futureBookings, setFutureBookings] = useState<FutureBooking[]>([]);
+  const [showAddBooking, setShowAddBooking] = useState(false);
+  const [newBooking, setNewBooking] = useState<Omit<FutureBooking, 'id'>>({ guestName: '', checkInDate: '', checkOutDate: '', numberOfPeople: 2, guestPhone: '', notes: '' });
 
   // Expected cleaning time
   const [expectedTime, setExpectedTime] = useState('14:00 PM');
@@ -53,6 +56,9 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
       setNotes(room.maintenanceNotes || '');
       setExpectedTime(room.expectedTime || '14:00 PM');
       setCreateInvoiceOnSave(false);
+      setFutureBookings(room.futureBookings ?? []);
+      setShowAddBooking(false);
+      setNewBooking({ guestName: '', checkInDate: '', checkOutDate: '', numberOfPeople: 2, guestPhone: '', notes: '' });
     }
   }, [room]);
 
@@ -114,6 +120,7 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
       maintenancePriority: priority,
       maintenanceNotes: notes,
       expectedTime: status === 'cleaning' ? expectedTime : '',
+      futureBookings,
     };
     onSave(updatedRoom, createInvoiceOnSave);
   };
@@ -433,6 +440,114 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
               </div>
             </>
           )}
+
+          {/* Future Bookings Queue — always visible */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Upcoming Bookings Queue</h4>
+              <button
+                type="button"
+                onClick={() => setShowAddBooking(v => !v)}
+                className="flex items-center gap-1 px-2.5 py-1 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/25 text-violet-300 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              >
+                <Plus className="h-3 w-3" />
+                Add Booking
+              </button>
+            </div>
+
+            {/* Add booking form */}
+            {showAddBooking && (
+              <div className="p-4 border border-violet-500/20 rounded-2xl bg-violet-500/5 space-y-3">
+                <h5 className="text-[10px] font-bold text-violet-300 uppercase tracking-widest">New Future Booking</h5>
+                <div>
+                  <label className="block text-xs font-bold text-white/50 mb-1">Guest Name *</label>
+                  <input type="text" value={newBooking.guestName} onChange={e => setNewBooking(b => ({ ...b, guestName: e.target.value }))}
+                    placeholder="e.g. Ravi Kumar"
+                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-white/50 mb-1">Phone</label>
+                  <input type="text" value={newBooking.guestPhone} onChange={e => setNewBooking(b => ({ ...b, guestPhone: e.target.value }))}
+                    placeholder="+91 98765 43210"
+                    className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-white/50 mb-1">Check-In *</label>
+                    <input type="datetime-local" value={newBooking.checkInDate} onChange={e => setNewBooking(b => ({ ...b, checkInDate: e.target.value }))}
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-white/50 mb-1">Check-Out *</label>
+                    <input type="datetime-local" value={newBooking.checkOutDate} onChange={e => setNewBooking(b => ({ ...b, checkOutDate: e.target.value }))}
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-white/50 mb-1">No. of People</label>
+                    <input type="number" min={1} value={newBooking.numberOfPeople} onChange={e => setNewBooking(b => ({ ...b, numberOfPeople: Number(e.target.value) }))}
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-white/50 mb-1">Notes</label>
+                    <input type="text" value={newBooking.notes} onChange={e => setNewBooking(b => ({ ...b, notes: e.target.value }))}
+                      placeholder="e.g. Early check-in"
+                      className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setShowAddBooking(false)}
+                    className="flex-1 py-2 border border-white/10 rounded-xl text-xs text-white/50 hover:bg-white/5 cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={() => {
+                    if (!newBooking.guestName.trim() || !newBooking.checkInDate || !newBooking.checkOutDate) {
+                      toast.error('Guest name, check-in and check-out are required.');
+                      return;
+                    }
+                    if (new Date(newBooking.checkOutDate) <= new Date(newBooking.checkInDate)) {
+                      toast.error('Check-out must be after check-in.');
+                      return;
+                    }
+                    const booking: FutureBooking = { ...newBooking, id: `fb-${Date.now()}` };
+                    setFutureBookings(prev => [...prev, booking].sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime()));
+                    setShowAddBooking(false);
+                    setNewBooking({ guestName: '', checkInDate: '', checkOutDate: '', numberOfPeople: 2, guestPhone: '', notes: '' });
+                    toast.success('Booking added to queue. Save changes to confirm.');
+                  }}
+                    className="flex-1 py-2 bg-violet-500 hover:bg-violet-600 text-white font-bold rounded-xl text-xs cursor-pointer">
+                    Add to Queue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bookings list */}
+            {futureBookings.length === 0 ? (
+              <p className="text-xs text-white/30 italic px-1">No upcoming bookings queued.</p>
+            ) : (
+              <div className="space-y-2">
+                {futureBookings.map((b, idx) => (
+                  <div key={b.id} className="flex items-start justify-between p-3 border border-white/10 rounded-xl bg-white/5 gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="text-[10px] font-black text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded-md px-1.5 py-0.5 flex-shrink-0">#{idx + 1}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{b.guestName}</p>
+                        {b.guestPhone && <p className="text-[10px] text-white/40 font-mono">{b.guestPhone}</p>}
+                        <p className="text-[10px] text-white/50 mt-0.5">{formatDate(b.checkInDate)} → {formatDate(b.checkOutDate)}</p>
+                        {b.notes && <p className="text-[10px] text-white/30 italic">{b.notes}</p>}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setFutureBookings(prev => prev.filter(x => x.id !== b.id))}
+                      className="p-1.5 hover:bg-rose-500/20 rounded-lg text-white/30 hover:text-rose-400 transition-colors cursor-pointer flex-shrink-0">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {status === 'cleaning' && (
             <div className="space-y-3 p-4 border border-white/10 rounded-2xl bg-white/5">

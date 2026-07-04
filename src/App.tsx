@@ -137,15 +137,15 @@ export default function App() {
                 .eq('user_id', userId);
 
               const rooms = (reFetched || []).map((r: any) => {
-                const { user_id: _uid, ...rest } = r;
-                return rest as Room;
+                const { user_id: _uid, futurebookings, futureBookings, ...rest } = r;
+                return { ...rest, futureBookings: futureBookings ?? futurebookings ?? [] } as Room;
               });
               rooms.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
               setRooms(rooms);
             } else {
               const rooms = allFound.map((r: any) => {
-                const { user_id: _uid, ...rest } = r;
-                return rest as Room;
+                const { user_id: _uid, futurebookings, futureBookings, ...rest } = r;
+                return { ...rest, futureBookings: futureBookings ?? futurebookings ?? [] } as Room;
               });
               rooms.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
               setRooms(rooms);
