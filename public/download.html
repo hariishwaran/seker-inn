@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Download – Sekar Inn Desktop</title>
+    <meta name="description" content="Download the Sekar Inn Hotel Management desktop app for macOS and Windows." />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #050505;
+        color: #fff;
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 560px;
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 24px;
+        padding: 40px;
+        text-align: center;
+      }
+      .logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        margin-bottom: 20px;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 28px;
+        margin: 0 0 8px;
+      }
+      p.sub {
+        color: rgba(255, 255, 255, 0.6);
+        margin: 0 0 32px;
+        font-size: 14px;
+      }
+      .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 15px;
+        text-decoration: none;
+        margin-bottom: 12px;
+        transition: opacity 0.2s ease, transform 0.1s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .btn:active {
+        transform: scale(0.98);
+      }
+      .btn-primary {
+        background: linear-gradient(to right, #6366f1, #7c3aed);
+        border: none;
+        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25);
+      }
+      .btn-primary:hover {
+        opacity: 0.92;
+      }
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+      }
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.09);
+      }
+      .btn[disabled],
+      .btn.disabled {
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      .meta {
+        margin-top: 24px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.4);
+      }
+      .status {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 24px;
+      }
+      .error {
+        font-size: 13px;
+        color: #f87171;
+        margin-top: 24px;
+        line-height: 1.5;
+      }
+      a.error-link {
+        color: #a5b4fc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <svg class="logo" viewBox="0 0 512 512" fill="none" role="img" aria-label="Sekar Inn">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#7c3aed"/>
+          </linearGradient>
+          <linearGradient id="roof" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ffffff"/>
+            <stop offset="100%" stop-color="#e2e8f0"/>
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="80" fill="url(#bg)"/>
+        <g transform="translate(256,260)">
+          <rect x="-80" y="-40" width="160" height="140" rx="4" fill="rgba(255,255,255,0.9)"/>
+          <polygon points="-90,-40 0,-80 90,-40" fill="url(#roof)"/>
+          <rect x="-20" y="40" width="40" height="60" rx="3" fill="rgba(99,102,241,0.3)"/>
+          <rect x="-60" y="-20" width="30" height="30" rx="2" fill="rgba(99,102,241,0.2)"/>
+          <rect x="30" y="-20" width="30" height="30" rx="2" fill="rgba(99,102,241,0.2)"/>
+          <rect x="-60" y="30" width="30" height="30" rx="2" fill="rgba(99,102,241,0.2)"/>
+          <rect x="30" y="30" width="30" height="30" rx="2" fill="rgba(99,102,241,0.2)"/>
+        </g>
+      </svg>
+      <h1>Sekar Inn Desktop</h1>
+      <p class="sub">Hotel management, on your desktop. Rooms, billing, invoicing and tax filing — no browser tab required.</p>
+
+      <div id="downloads">
+        <div class="status">Checking for the latest release…</div>
+      </div>
+
+      <div class="meta" id="version-meta"></div>
+    </div>
+
+    <script>
+      const REPO = 'hariishwaran/seker-inn';
+      const container = document.getElementById('downloads');
+      const versionMeta = document.getElementById('version-meta');
+
+      function isMac() {
+        return /Mac/i.test(navigator.userAgent) && !/iPhone|iPad/i.test(navigator.userAgent);
+      }
+      function isWindows() {
+        return /Win/i.test(navigator.userAgent);
+      }
+
+      function assetFor(assets, pattern) {
+        return assets.find((a) => pattern.test(a.name));
+      }
+
+      function formatSize(bytes) {
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+
+      function renderButton(label, sublabel, url, size, primary) {
+        const a = document.createElement('a');
+        a.className = 'btn ' + (primary ? 'btn-primary' : 'btn-secondary');
+        a.href = url;
+        a.innerHTML = label + (size ? ` <span style="opacity:.6;font-weight:400">— ${size}</span>` : '');
+        a.title = sublabel || '';
+        return a;
+      }
+
+      fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
+        .then((r) => {
+          if (!r.ok) throw new Error('no-release');
+          return r.json();
+        })
+        .then((release) => {
+          const assets = release.assets || [];
+          const dmg = assetFor(assets, /\.dmg$/i);
+          const exe = assetFor(assets, /\.exe$/i);
+
+          container.innerHTML = '';
+
+          if (!dmg && !exe) {
+            container.innerHTML = '<div class="error">The latest release has no installers attached yet.</div>';
+            return;
+          }
+
+          if (dmg) {
+            container.appendChild(
+              renderButton('Download for macOS', 'Universal — Apple Silicon & Intel', dmg.browser_download_url, formatSize(dmg.size), isMac())
+            );
+          }
+          if (exe) {
+            container.appendChild(
+              renderButton('Download for Windows', '64-bit installer', exe.browser_download_url, formatSize(exe.size), isWindows())
+            );
+          }
+
+          versionMeta.textContent = `Version ${release.tag_name} · Released ${new Date(release.published_at).toLocaleDateString()}`;
+        })
+        .catch(() => {
+          container.innerHTML =
+            '<div class="error">No release is published yet.<br/>Check back soon, or see the <a class="error-link" href="https://github.com/' +
+            REPO +
+            '/releases" target="_blank" rel="noopener">releases page</a> directly.</div>';
+        });
+    </script>
+  </body>
+</html>
