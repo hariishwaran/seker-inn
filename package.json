@@ -48,7 +48,8 @@
     "productName": "Sekar Inn",
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "!node_modules/**"
     ],
     "directories": {
       "output": "release"
@@ -57,7 +58,7 @@
       "provider": "github",
       "owner": "hariishwaran",
       "repo": "seker-inn",
-      "draft": false
+      "releaseType": "release"
     },
     "mac": {
       "icon": "public/logo.png",
