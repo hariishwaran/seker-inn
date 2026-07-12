@@ -9,8 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     strategy:
+      max-parallel: 1
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -23,9 +24,18 @@ jobs:
 
       - run: npm ci
 
-      - name: Build and publish
+      - name: Build and publish draft
         run: npm run electron:build -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Un-draft the release
+        run: gh release edit "${{ github.ref_name }}" --draft=false --repo hariishwaran/seker-inn
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
