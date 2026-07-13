@@ -54,12 +54,6 @@
     "directories": {
       "output": "release"
     },
-    "publish": {
-      "provider": "github",
-      "owner": "hariishwaran",
-      "repo": "seker-inn",
-      "releaseType": "draft"
-    },
     "mac": {
       "icon": "public/logo.png",
       "category": "public.app-category.business",

@@ -11,7 +11,6 @@ permissions:
 jobs:
   build:
     strategy:
-      max-parallel: 1
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -24,18 +23,31 @@ jobs:
 
       - run: npm ci
 
-      - name: Build and publish draft
-        run: npm run electron:build -- --publish always
+      - name: Build installer
+        run: npm run build && npx electron-builder --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-  publish:
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}
+          path: |
+            release/*.dmg
+            release/*.exe
+          if-no-files-found: error
+
+  release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Un-draft the release
-        run: gh release edit "${{ github.ref_name }}" --draft=false --repo hariishwaran/seker-inn
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Create GitHub release
+        run: gh release create "${{ github.ref_name }}" installers/* --repo hariishwaran/seker-inn --title "${{ github.ref_name }}" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
