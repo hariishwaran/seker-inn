@@ -53,6 +53,7 @@ export default function App() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthChecked, setIsAuthChecked] = useState<boolean>(false);
+  const [loadTimedOut, setLoadTimedOut] = useState<boolean>(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
   // Persistence state Core
@@ -255,6 +256,15 @@ export default function App() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // Safety net: if the initial Supabase auth/session check never resolves
+  // (e.g. the network is unreachable), don't leave the user staring at a
+  // spinner forever — surface an actionable error instead.
+  useEffect(() => {
+    if (isAuthChecked && !isLoading) return;
+    const timer = setTimeout(() => setLoadTimedOut(true), 12000);
+    return () => clearTimeout(timer);
+  }, [isAuthChecked, isLoading]);
 
   // Automated Checkout Monitor
   useEffect(() => {
@@ -731,6 +741,22 @@ export default function App() {
   };
 
   if (!isAuthChecked || isLoading) {
+    if (loadTimedOut) {
+      return (
+        <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center font-sans overflow-hidden p-4">
+          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+            <p className="text-sm text-white/70 font-mono">Taking longer than expected to reach the server.</p>
+            <p className="text-xs text-white/40">Check your internet connection, then try again.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:opacity-90 font-semibold rounded-xl text-sm transition-all cursor-pointer active:scale-95"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center font-sans overflow-hidden">
         <div className="flex flex-col items-center gap-4">
