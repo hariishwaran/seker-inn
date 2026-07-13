@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "electron:dev": "concurrently -k -n vite,electron \"vite --port=5180 --strictPort --host=0.0.0.0\" \"wait-on tcp:5180 && cross-env NODE_ENV=development ELECTRON_START_URL=http://localhost:5180 electron .\"",
+    "electron:dev": "concurrently -k -n vite,electron \"vite --port=5180 --strictPort --host=0.0.0.0\" \"wait-on tcp:5180 && cross-env NODE_ENV=development ELECTRON_START_URL=http://localhost:5180/app.html electron .\"",
     "electron:build": "npm run build && electron-builder",
     "electron:pack": "npm run build && electron-builder --dir"
   },

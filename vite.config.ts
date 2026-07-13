@@ -16,6 +16,12 @@ export default defineConfig(() => {
     },
     build: {
       rollupOptions: {
+        // index.html is the public download landing page; app.html is the
+        // actual React hotel-management app.
+        input: {
+          index: path.resolve(__dirname, 'index.html'),
+          app: path.resolve(__dirname, 'app.html'),
+        },
         output: {
           manualChunks: {
             'pdf-libs': ['jspdf', 'jszip', 'file-saver', 'html-to-image'],

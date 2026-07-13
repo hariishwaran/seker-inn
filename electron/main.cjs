@@ -33,11 +33,13 @@ function createWindow() {
   });
 
   if (isDev) {
-    const devServerUrl = process.env.ELECTRON_START_URL || 'http://localhost:3000';
+    const devServerUrl = process.env.ELECTRON_START_URL || 'http://localhost:3000/app.html';
     mainWindow.loadURL(devServerUrl);
     mainWindow.webContents.openDevTools({mode: 'detach'});
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    // app.html is the hotel-management app; index.html is the public
+    // download landing page and isn't meaningful inside the desktop shell.
+    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'app.html'));
   }
 }
 
