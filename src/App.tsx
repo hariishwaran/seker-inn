@@ -21,6 +21,7 @@ const TaxFilingView = lazy(() => import('./components/TaxFilingView'));
 
 // Real backend imports (Supabase Auth and Postgres)
 import { supabase, OperationType } from './lib/supabase';
+import logo from './assets/logo.png';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   address: 'Flat No.: 3, LAKSHMIMANAGARAM MIDDLE STREET, Arumuganeri, Thoothukudi, Tamil Nadu - 628202',
@@ -1271,7 +1272,7 @@ function LoginView({
         <div className="text-center space-y-2">
           <div className="flex justify-center flex-col items-center gap-3">
             <img
-              src="/logo.png"
+              src={logo}
               alt="Sekar Inn"
               className="h-20 w-20 rounded-2xl object-cover shadow-lg border border-white/10"
             />

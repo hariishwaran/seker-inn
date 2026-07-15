@@ -4,6 +4,7 @@
  */
 
 import { Invoice, SystemSettings } from '../types';
+import invoiceLogo from '../assets/invoicelogo.png';
 
 interface PrintableInvoiceContentProps {
   invoice: Invoice;
@@ -123,7 +124,7 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
       <div className="flex border-b border-black">
         <div className="w-[60%] border-r border-black p-2 space-y-2">
            <div className="flex items-center">
-             <img src="/invoicelogo.png" alt="Sekar Inn" className="h-24 w-auto object-contain" />
+             <img src={invoiceLogo} alt="Sekar Inn" className="h-24 w-auto object-contain" />
            </div>
            <div className="flex gap-2">
              <span className="font-bold">Address - </span>

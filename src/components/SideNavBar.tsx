@@ -4,6 +4,7 @@
  */
 
 import { LayoutDashboard, BedDouble, ReceiptText, Settings, LogOut, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 interface SideNavBarProps {
   activeTab: string;
@@ -72,7 +73,7 @@ export default function SideNavBar({
         } px-6`}>
           {/* Logo icon — always visible */}
           <img
-            src="/logo.png"
+            src={logo}
             alt="Sekar Inn Logo"
             className="w-10 h-10 rounded-xl object-cover flex-shrink-0 shadow-lg"
           />
