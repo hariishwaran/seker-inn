@@ -201,17 +201,7 @@ export default function App() {
 
             if (docSnap) {
               const { user_id, id: _id, ...rest } = docSnap;
-              const loadedSettings = rest as SystemSettings;
-              
-              const decodePercentage = (val: number) => {
-                if (val === 0) return 0;
-                if (val >= 100) return val / 10000;
-                return val;
-              };
-
-              loadedSettings.cgstPercentage = decodePercentage(loadedSettings.cgstPercentage || 0);
-              loadedSettings.sgstpercentage = decodePercentage(loadedSettings.sgstpercentage || 0);
-              setSettings(loadedSettings);
+              setSettings(rest as SystemSettings);
             } else {
               // Seed settings
               const { error: seedErr } = await supabase.from('settings').insert({
@@ -467,7 +457,7 @@ export default function App() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     try {
-      const { error } = await supabase.from('rooms').upsert({ ...updatedRoom, user_id: user.id });
+      const { error } = await supabase.from('rooms').upsert({ ...updatedRoom, user_id: user.id }, { onConflict: 'user_id,id' });
       if (error) throw error;
 
       setSelectedRoomId(null);
@@ -586,7 +576,7 @@ export default function App() {
 
       if (isExisting) {
         // Editing an existing record (billing or tax) — update only that one
-        const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id });
+        const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id }, { onConflict: 'user_id,id' });
         if (error) throw error;
         setInvoices(prev => prev.map(i => i.id === cleanId ? { ...newInvoice, id: cleanId } : i));
       } else {

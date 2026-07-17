@@ -105,6 +105,22 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
       return;
     }
 
+    // Fold in a pending "new future booking" form, if one is open and the
+    // user started filling it in, so a single Save Changes covers both.
+    let finalFutureBookings = futureBookings;
+    if (showAddBooking && newBooking.guestName.trim()) {
+      if (!newBooking.checkInDate || !newBooking.checkOutDate) {
+        toast.error('Guest name, check-in and check-out are required for the new booking.');
+        return;
+      }
+      if (new Date(newBooking.checkOutDate) <= new Date(newBooking.checkInDate)) {
+        toast.error('Check-out must be after check-in for the new booking.');
+        return;
+      }
+      const booking: FutureBooking = { ...newBooking, id: `fb-${Date.now()}` };
+      finalFutureBookings = [...futureBookings, booking].sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime());
+    }
+
     const updatedRoom: Room = {
       ...room,
       status,
@@ -120,7 +136,7 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
       maintenancePriority: priority,
       maintenanceNotes: notes,
       expectedTime: status === 'cleaning' ? expectedTime : '',
-      futureBookings,
+      futureBookings: finalFutureBookings,
     };
     onSave(updatedRoom, createInvoiceOnSave);
   };
@@ -496,28 +512,14 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
                       className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2 text-xs focus:outline-none focus:border-violet-500" />
                   </div>
                 </div>
-                <div className="flex gap-2 pt-1">
-                  <button type="button" onClick={() => setShowAddBooking(false)}
-                    className="flex-1 py-2 border border-white/10 rounded-xl text-xs text-white/50 hover:bg-white/5 cursor-pointer">
-                    Cancel
-                  </button>
+                <p className="text-[11px] text-white/40 italic pt-1">Filled in above? Just hit Save Changes below to add this booking.</p>
+                <div className="flex gap-2">
                   <button type="button" onClick={() => {
-                    if (!newBooking.guestName.trim() || !newBooking.checkInDate || !newBooking.checkOutDate) {
-                      toast.error('Guest name, check-in and check-out are required.');
-                      return;
-                    }
-                    if (new Date(newBooking.checkOutDate) <= new Date(newBooking.checkInDate)) {
-                      toast.error('Check-out must be after check-in.');
-                      return;
-                    }
-                    const booking: FutureBooking = { ...newBooking, id: `fb-${Date.now()}` };
-                    setFutureBookings(prev => [...prev, booking].sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime()));
                     setShowAddBooking(false);
                     setNewBooking({ guestName: '', checkInDate: '', checkOutDate: '', numberOfPeople: 2, guestPhone: '', notes: '' });
-                    toast.success('Booking added to queue. Save changes to confirm.');
                   }}
-                    className="flex-1 py-2 bg-violet-500 hover:bg-violet-600 text-white font-bold rounded-xl text-xs cursor-pointer">
-                    Add to Queue
+                    className="flex-1 py-2 border border-white/10 rounded-xl text-xs text-white/50 hover:bg-white/5 cursor-pointer">
+                    Cancel
                   </button>
                 </div>
               </div>
