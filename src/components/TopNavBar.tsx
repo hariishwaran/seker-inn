@@ -1,28 +1,14 @@
-import { useState } from 'react';
 import { Menu } from 'lucide-react';
-import ProfileDropdown from './ProfileDropdown';
 
 interface TopNavBarProps {
   activeTab: string;
-  userEmail: string;
-  userDisplayName: string;
-  userAvatarUrl: string;
-  onUpdateDisplayName: (name: string) => Promise<void>;
-  onLogout: () => void;
   onToggleMobileMenu: () => void;
 }
 
 export default function TopNavBar({
   activeTab,
-  userEmail,
-  userDisplayName,
-  userAvatarUrl,
-  onUpdateDisplayName,
-  onLogout,
   onToggleMobileMenu
 }: TopNavBarProps) {
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -40,12 +26,6 @@ export default function TopNavBar({
       default:
         return 'Sekar Inn Portal';
     }
-  };
-
-  const getInitial = () => {
-    if (userDisplayName && userDisplayName.trim()) return userDisplayName[0].toUpperCase();
-    if (userEmail && userEmail.trim()) return userEmail[0].toUpperCase();
-    return 'U';
   };
 
   return (
@@ -66,46 +46,6 @@ export default function TopNavBar({
         <h2 className="text-xl font-medium text-white/90 tracking-tight font-display" id="top-bar-title">
           {getHeaderTitle()}
         </h2>
-      </div>
-
-      <div className="flex items-center gap-4 relative">
-        <div className="flex items-center gap-3 pl-4 border-l border-white/10" id="user-profile-badge">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-white/90">{userDisplayName || 'User'}</p>
-            <p className="text-xs text-white/40 font-mono">{userEmail}</p>
-          </div>
-          <button
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="w-10 h-10 rounded-full border border-white/20 p-0.5 flex items-center justify-center hover:border-white/40 transition-all cursor-pointer overflow-hidden bg-[#0f1646]"
-            title="Profile settings"
-          >
-            {userAvatarUrl ? (
-              <img
-                src={userAvatarUrl}
-                alt=""
-                className="w-full h-full rounded-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-full h-full rounded-full bg-gradient-to-tr from-indigo-600 via-emerald-400 to-yellow-200 text-[#0f1646] flex items-center justify-center font-extrabold text-sm select-none">
-                {getInitial()}
-              </div>
-            )}
-          </button>
-        </div>
-
-        {isProfileOpen && (
-          <ProfileDropdown
-            userEmail={userEmail}
-            userDisplayName={userDisplayName}
-            userAvatarUrl={userAvatarUrl}
-            onUpdateDisplayName={onUpdateDisplayName}
-            onLogout={onLogout}
-            onClose={() => setIsProfileOpen(false)}
-          />
-        )}
       </div>
     </header>
   );

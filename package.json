@@ -12,12 +12,11 @@
     "lint": "tsc --noEmit",
     "electron:dev": "concurrently -k -n vite,electron \"vite --port=5180 --strictPort --host=0.0.0.0\" \"wait-on tcp:5180 && cross-env NODE_ENV=development ELECTRON_START_URL=http://localhost:5180/app.html electron .\"",
     "electron:build": "npm run build && electron-builder",
-    "electron:pack": "npm run build && electron-builder --dir"
+    "electron:pack": "npm run build && electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.107.0",
-    "@tailwindcss/vite": "^4.1.14",
-    "@vitejs/plugin-react": "^5.0.4",
+    "better-sqlite3": "^12.11.1",
     "file-saver": "^2.0.5",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
@@ -25,12 +24,14 @@
     "lucide-react": "^0.546.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "sonner": "^2.0.7",
-    "vite": "^6.2.3"
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
@@ -48,8 +49,7 @@
     "productName": "Sekar Inn",
     "files": [
       "dist/**/*",
-      "electron/**/*",
-      "!node_modules/**"
+      "electron/**/*"
     ],
     "directories": {
       "output": "release"
@@ -60,7 +60,9 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ]
     },

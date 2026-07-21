@@ -117,6 +117,17 @@ export default function RoomDrawer({ room, onClose, onSave, onDelete, settings }
         toast.error('Check-out must be after check-in for the new booking.');
         return;
       }
+      const newStart = new Date(newBooking.checkInDate).getTime();
+      const newEnd = new Date(newBooking.checkOutDate).getTime();
+      const conflict = futureBookings.find((b) => {
+        const bStart = new Date(b.checkInDate).getTime();
+        const bEnd = new Date(b.checkOutDate).getTime();
+        return newStart < bEnd && bStart < newEnd;
+      });
+      if (conflict) {
+        toast.error(`This overlaps with an already-queued booking for ${conflict.guestName} (${formatDateTime(conflict.checkInDate)} → ${formatDateTime(conflict.checkOutDate)}). Please pick different dates.`);
+        return;
+      }
       const booking: FutureBooking = { ...newBooking, id: `fb-${Date.now()}` };
       finalFutureBookings = [...futureBookings, booking].sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime());
     }

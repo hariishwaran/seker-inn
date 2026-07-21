@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, FormEvent, Suspense, lazy } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { Room, Invoice, SystemSettings } from './types';
-import { initialRooms, initialInvoices } from './data';
 import SideNavBar from './components/SideNavBar';
 import TopNavBar from './components/TopNavBar';
 import RoomDrawer from './components/RoomDrawer';
 import PrintableInvoiceModal from './components/PrintableInvoiceModal';
-import { Settings, Save, HelpCircle, Building, AlertCircle, ExternalLink, Key, X } from 'lucide-react';
+import { Settings, Save, HelpCircle, Building } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
 const DashboardView = lazy(() => import('./components/DashboardView'));
@@ -19,9 +18,8 @@ const BillingInvoicesView = lazy(() => import('./components/BillingInvoicesView'
 const NewInvoiceFormView = lazy(() => import('./components/NewInvoiceFormView'));
 const TaxFilingView = lazy(() => import('./components/TaxFilingView'));
 
-// Real backend imports (Supabase Auth and Postgres)
-import { supabase, OperationType } from './lib/supabase';
-import logo from './assets/logo.png';
+// Local SQLite backend, accessed via IPC (see electron/db.cjs, electron/preload.cjs)
+import { db } from './lib/db';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   address: 'Flat No.: 3, LAKSHMIMANAGARAM MIDDLE STREET, Arumuganeri, Thoothukudi, Tamil Nadu - 628202',
@@ -46,21 +44,14 @@ export default function App() {
 
   // Mobile navigation overlay/drawer state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
-  
-  // Auth state
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [userDisplayName, setUserDisplayName] = useState<string>('');
-  const [userAvatarUrl, setUserAvatarUrl] = useState<string>('');
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isAuthChecked, setIsAuthChecked] = useState<boolean>(false);
-  const [loadTimedOut, setLoadTimedOut] = useState<boolean>(false);
-  const [dbError, setDbError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Persistence state Core
   const [rooms, setRooms] = useState<Room[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  
+
   // System Settings State
   const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
 
@@ -80,186 +71,33 @@ export default function App() {
   } | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
-  // Sync to database on mount
+  // Load everything from the local database on mount
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setIsAuthChecked(true);
-      if (session?.user) {
-        setIsLoggedIn(true);
-        setIsLoading(true);
-        setUserEmail(session.user.email || '');
-        const metadata = session.user.user_metadata || {};
-        setUserDisplayName(metadata.display_name || '');
-        setUserAvatarUrl(metadata.avatar_url || '');
-        const userId = session.user.id;
-        
-        // Sync Rooms Collection
-        const fetchRooms = async () => {
-          try {
-            // Fetch rooms for this user OR orphaned rooms (user_id is null)
-            const { data: fetchedRooms, error } = await supabase
-              .from('rooms')
-              .select('*')
-              .or(`user_id.eq.${userId},user_id.is.null`);
-
-            if (error) throw error;
-
-            const allFound = fetchedRooms || [];
-
-            // Claim any orphaned (null user_id) rooms permanently
-            const orphanIds = allFound
-              .filter((r: any) => !r.user_id)
-              .map((r: any) => r.id);
-
-            if (orphanIds.length > 0) {
-              await supabase
-                .from('rooms')
-                .update({ user_id: userId })
-                .in('id', orphanIds);
-            }
-
-            const existingRoomIds = new Set(allFound.map((r: any) => r.id));
-            const missingRooms = initialRooms.filter(r => !existingRoomIds.has(r.id));
-
-            // Seed any default rooms that are still missing
-            if (missingRooms.length > 0) {
-              for (const room of missingRooms) {
-                const { error: seedErr } = await supabase.from('rooms').insert({
-                  ...room,
-                  user_id: userId
-                });
-                if (seedErr) {
-                  console.error(`[SekarInn] Failed to seed room ${room.id}:`, seedErr);
-                }
-              }
-              // Re-fetch everything after seeding
-              const { data: reFetched } = await supabase
-                .from('rooms')
-                .select('*')
-                .eq('user_id', userId);
-
-              const rooms = (reFetched || []).map((r: any) => {
-                const { user_id: _uid, futurebookings, futureBookings, ...rest } = r;
-                return { ...rest, futureBookings: futureBookings ?? futurebookings ?? [] } as Room;
-              });
-              rooms.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
-              setRooms(rooms);
-            } else {
-              const rooms = allFound.map((r: any) => {
-                const { user_id: _uid, futurebookings, futureBookings, ...rest } = r;
-                return { ...rest, futureBookings: futureBookings ?? futurebookings ?? [] } as Room;
-              });
-              rooms.sort((a: Room, b: Room) => a.id.localeCompare(b.id));
-              setRooms(rooms);
-            }
-
-            setDbError(null);
-          } catch (error: any) {
-            console.error("[SekarInn] Rooms snapshot error:", error);
-            setDbError(error.message || String(error));
-            setRooms(initialRooms.map(r => ({ ...r })));
-          }
-        };
-
-        // Sync Invoices Collection
-        const fetchInvoices = async () => {
-          try {
-            const { data: fetchedInvoices, error } = await supabase
-              .from('invoices')
-              .select('*')
-              .eq('user_id', userId);
-            
-            if (error) throw error;
-            
-            if (fetchedInvoices) {
-              const formattedInvoices = fetchedInvoices.map((i: any) => {
-                const { user_id: _uid, lineitems, lineItems, ...rest } = i;
-                return { ...rest, lineItems: lineItems ?? lineitems ?? [] } as Invoice;
-              });
-              formattedInvoices.sort((a, b) => b.id.localeCompare(a.id));
-              setInvoices(formattedInvoices);
-            }
-          } catch (error) {
-            console.error("Invoices fetch error:", error);
-          }
-        };
-
-        // Sync Settings Document
-        const fetchSettings = async () => {
-          try {
-            const { data: docSnap, error } = await supabase
-              .from('settings')
-              .select('*')
-              .eq('id', 'default')
-              .maybeSingle();
-
-            if (error) {
-              console.error("[SekarInn] Settings fetch error:", error);
-              setSettings(DEFAULT_SETTINGS);
-              return;
-            }
-
-            if (docSnap) {
-              const { user_id, id: _id, ...rest } = docSnap;
-              setSettings(rest as SystemSettings);
-            } else {
-              // Seed settings
-              const { error: seedErr } = await supabase.from('settings').insert({
-                id: 'default',
-                user_id: userId,
-                ...DEFAULT_SETTINGS
-              });
-              if (seedErr) {
-                console.error("[SekarInn] Settings seed error:", seedErr);
-              }
-              setSettings(DEFAULT_SETTINGS);
-            }
-          } catch (error) {
-            console.error("Settings fetch error:", error);
-            setSettings(DEFAULT_SETTINGS);
-          }
-        };
-
-        await Promise.all([fetchRooms(), fetchInvoices(), fetchSettings()]);
+    const load = async () => {
+      try {
+        const [loadedRooms, loadedInvoices, loadedSettings] = await Promise.all([
+          db.getRooms(),
+          db.getInvoices(),
+          db.getSettings(),
+        ]);
+        setRooms(loadedRooms);
+        setInvoices(loadedInvoices);
+        const { id: _id, ...settingsRest } = loadedSettings;
+        setSettings(settingsRest as SystemSettings);
+        setLoadError(null);
+      } catch (error: any) {
+        console.error('[SekarInn] Failed to load local database:', error);
+        setLoadError(error.message || String(error));
+      } finally {
         setIsLoading(false);
-
-        const channel = supabase.channel('sekarinn-realtime')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => fetchRooms())
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchInvoices())
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => fetchSettings())
-          .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-      } else {
-        setIsLoggedIn(false);
-        setUserEmail('');
-        setUserDisplayName('');
-        setUserAvatarUrl('');
-        setRooms([]);
-        setInvoices([]);
-        setSettings(DEFAULT_SETTINGS);
-        setIsLoading(false);
-        setIsAuthChecked(true);
       }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
     };
+    load();
   }, []);
-
-  // Safety net: if the initial Supabase auth/session check never resolves
-  // (e.g. the network is unreachable), don't leave the user staring at a
-  // spinner forever — surface an actionable error instead.
-  useEffect(() => {
-    if (isAuthChecked && !isLoading) return;
-    const timer = setTimeout(() => setLoadTimedOut(true), 12000);
-    return () => clearTimeout(timer);
-  }, [isAuthChecked, isLoading]);
 
   // Automated Checkout Monitor
   useEffect(() => {
-    if (!isLoggedIn || !rooms.length || !settings) return;
+    if (!rooms.length || !settings) return;
 
     const checkOverdueRooms = async () => {
       const now = new Date();
@@ -275,12 +113,9 @@ export default function App() {
           if (!isNaN(checkinDate.getTime()) && now >= checkinDate) {
             const updatedRoom = { ...room, status: 'occupied' as const };
             try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user) {
-                await supabase.from('rooms').update(updatedRoom).eq('id', room.id).eq('user_id', user.id);
-                updatedRooms[i] = updatedRoom;
-                hasChanges = true;
-              }
+              await db.saveRoom(updatedRoom);
+              updatedRooms[i] = updatedRoom;
+              hasChanges = true;
             } catch (err) {
               console.error("Auto-booking transition failed", err);
             }
@@ -289,7 +124,7 @@ export default function App() {
 
         if (room.status === 'occupied' && room.checkOutDate) {
           const checkoutDate = new Date(room.checkOutDate);
-          
+
           if (!isNaN(checkoutDate.getTime()) && now > checkoutDate) {
              // AUTO DRAFT INVOICE
              const generatedId = `SI-${invoices.filter(i => !i.id.startsWith('TAX-')).length + 1}`;
@@ -344,14 +179,11 @@ export default function App() {
              };
 
              try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                   const taxCopy = { ...newInvoice, id: `TAX-${generatedId}` };
-                   await supabase.from('invoices').insert({ ...newInvoice, user_id: user.id });
-                   await supabase.from('invoices').insert({ ...taxCopy, user_id: user.id });
-                   setInvoices(prev => [newInvoice, taxCopy, ...prev]);
-                   toast.warning(`Room ${room.id} checkout time reached! Draft invoice auto-generated.`, { duration: 8000 });
-                }
+                const taxCopy = { ...newInvoice, id: `TAX-${generatedId}` };
+                await db.saveInvoice(newInvoice);
+                await db.saveInvoice(taxCopy);
+                setInvoices(prev => [newInvoice, taxCopy, ...prev]);
+                toast.warning(`Room ${room.id} checkout time reached! Draft invoice auto-generated.`, { duration: 8000 });
              } catch (err) {
                 console.error("Auto invoice failed", err);
              }
@@ -369,12 +201,9 @@ export default function App() {
                expectedTime: '14:00 PM'
              };
              try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                   await supabase.from('rooms').update(updatedRoom).eq('id', room.id).eq('user_id', user.id);
-                   updatedRooms[i] = updatedRoom;
-                   hasChanges = true;
-                }
+                await db.saveRoom(updatedRoom);
+                updatedRooms[i] = updatedRoom;
+                hasChanges = true;
              } catch (err) {
                 console.error("Auto update room failed", err);
              }
@@ -389,76 +218,15 @@ export default function App() {
 
     const interval = setInterval(checkOverdueRooms, 60000); // Check every minute
     return () => clearInterval(interval);
-  }, [rooms, settings, isLoggedIn]);
-
-
-  const handleLogin = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Supabase Login Error:", err);
-      throw err;
-    }
-  };
-
-  const handleSignUp = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Supabase SignUp Error:", err);
-      throw err;
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Google Sign-In Error:", err);
-      throw err;
-    }
-  };
-
-  const handleLogout = async () => {
-    if (confirm("Are you sure you want to log out from the Manager Portal?")) {
-      try {
-        setIsLoading(true);
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-        toast.success("Logged out successfully");
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const handleUpdateDisplayName = async (name: string) => {
-    try {
-      const { error } = await supabase.auth.updateUser({ data: { display_name: name } });
-      if (error) throw error;
-      setUserDisplayName(name);
-      toast.success('Display name updated');
-    } catch (err: any) {
-      toast.error('Failed to update display name: ' + (err.message || String(err)));
-      throw err;
-    }
-  };
+  }, [rooms, settings]);
 
   // Selectors
   const selectedRoomObj = rooms.find(r => r.id === selectedRoomId) || null;
 
   // Handles Saving a Room change from Side Drawer
   const handleSaveRoomStatus = async (updatedRoom: Room, createInvoice?: boolean) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     try {
-      const { error } = await supabase.from('rooms').upsert({ ...updatedRoom, user_id: user.id }, { onConflict: 'user_id,id' });
-      if (error) throw error;
+      await db.saveRoom(updatedRoom);
 
       setSelectedRoomId(null);
       // Trigger a local state update immediately for snappy UI
@@ -484,15 +252,12 @@ export default function App() {
 
   // Handles Adding a Custom Room
   const handleAddRoom = async (newRoom: Room) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     if (rooms.some(r => r.id === newRoom.id)) {
       toast.error(`Room ${newRoom.id} already exists!`);
       return;
     }
     try {
-      const { error } = await supabase.from('rooms').insert({ ...newRoom, user_id: user.id });
-      if (error) throw error;
+      await db.saveRoom(newRoom);
       setRooms(prev => [...prev, newRoom].sort((a, b) => a.id.localeCompare(b.id)));
     } catch (error: any) {
       console.error("Add Room Error:", error);
@@ -502,11 +267,8 @@ export default function App() {
 
   // Handles Deleting a Room
   const handleDeleteRoom = async (roomId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     try {
-      const { error } = await supabase.from('rooms').delete().eq('id', roomId).eq('user_id', user.id);
-      if (error) throw error;
+      await db.deleteRoom(roomId);
       setSelectedRoomId(null);
       setRooms(prev => prev.filter(r => r.id !== roomId));
       toast.success(`Room ${roomId} was deactivated and removed from the register.`);
@@ -518,24 +280,14 @@ export default function App() {
 
   // Handles Database Wiping
   const handleResetDatabase = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     if (confirm("Are you sure you want to completely WIPE all data? This clears all invoices and resets the hotel rooms inventory to standard vacant rooms for fresh setup.")) {
       try {
         setIsLoading(true);
-        // Wipe rooms
-        await supabase.from('rooms').delete().eq('user_id', user.id);
-        // Wipe invoices
-        await supabase.from('invoices').delete().eq('user_id', user.id);
-
-        for (const room of initialRooms) {
-          await supabase.from('rooms').insert({ ...room, user_id: user.id });
-        }
-        
+        const { rooms: freshRooms, invoices: freshInvoices } = await db.resetDatabase();
+        setRooms(freshRooms);
+        setInvoices(freshInvoices);
         setSelectedRoomId(null);
         toast.success("Database wiped successfully! System is running fresh with standard vacant parameters.");
-        // We could trigger a refetch here if we aren't relying entirely on local state
-        window.location.reload(); 
       } catch (error: any) {
         console.error("Database Wipe Error:", error);
         toast.error("Failed to wipe database: " + error.message);
@@ -547,16 +299,8 @@ export default function App() {
 
   // Handles saving system configurations
   const handleSaveSettings = async (updatedSettings: SystemSettings) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
     try {
-      const dbSettings = {
-        ...updatedSettings,
-        id: 'default',
-        user_id: user.id
-      };
-      const { error } = await supabase.from('settings').upsert(dbSettings);
-      if (error) throw error;
+      await db.saveSettings(updatedSettings);
       setSettings(updatedSettings);
       toast.success("Settings saved successfully!");
     } catch (error: any) {
@@ -568,28 +312,23 @@ export default function App() {
 
   // Handles Saving a New Invoice generated from form
   const handleSaveInvoice = async (newInvoice: Invoice) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     try {
       const cleanId = newInvoice.id.replace(/^#/, '');
       const isExisting = invoices.some(i => i.id === cleanId);
 
       if (isExisting) {
         // Editing an existing record (billing or tax) — update only that one
-        const { error } = await supabase.from('invoices').upsert({ ...newInvoice, id: cleanId, user_id: user.id }, { onConflict: 'user_id,id' });
-        if (error) throw error;
+        await db.saveInvoice({ ...newInvoice, id: cleanId });
         setInvoices(prev => prev.map(i => i.id === cleanId ? { ...newInvoice, id: cleanId } : i));
       } else {
         // Brand-new invoice — create billing copy + independent tax copy
         const taxId = `TAX-${cleanId}`;
-        const billingRecord = { ...newInvoice, id: cleanId, user_id: user.id };
-        const taxRecord = { ...newInvoice, id: taxId, user_id: user.id };
-        const [r1, r2] = await Promise.all([
-          supabase.from('invoices').insert(billingRecord),
-          supabase.from('invoices').insert(taxRecord),
+        const billingRecord = { ...newInvoice, id: cleanId };
+        const taxRecord = { ...newInvoice, id: taxId };
+        await Promise.all([
+          db.saveInvoice(billingRecord),
+          db.saveInvoice(taxRecord),
         ]);
-        if (r1.error) throw r1.error;
-        if (r2.error) throw r2.error;
         setInvoices(prev => [
           { ...newInvoice, id: cleanId },
           { ...newInvoice, id: taxId },
@@ -607,13 +346,10 @@ export default function App() {
   };
 
   const handleDeleteInvoice = async (invoiceId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     if (confirm(`Are you sure you want to delete Invoice ${invoiceId}? This is irreversible.`)) {
       try {
         const cleanId = invoiceId.replace(/^#/, '');
-        const { error } = await supabase.from('invoices').delete().eq('id', cleanId).eq('user_id', user.id);
-        if (error) throw error;
+        await db.deleteInvoice(cleanId);
         setInvoices(prev => prev.filter(i => i.id !== cleanId));
       } catch (error: any) {
         console.error("Invoice Delete Error:", error);
@@ -623,12 +359,9 @@ export default function App() {
   };
 
   const handleUpdateInvoiceStatus = async (invoiceId: string, newStatus: Invoice['status']) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     try {
       const cleanId = invoiceId.replace(/^#/, '');
-      const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', cleanId).eq('user_id', user.id);
-      if (error) throw error;
+      await db.updateInvoiceStatus(cleanId, newStatus);
       setInvoices(prev => prev.map(i => i.id === cleanId ? { ...i, status: newStatus } : i));
     } catch (error: any) {
       console.error("Invoice Update Error:", error);
@@ -649,7 +382,7 @@ export default function App() {
                 onSelectRoom={(id) => setSelectedRoomId(id)}
               />
             )}
-            
+
             {activeTab === 'rooms' && (
               <RoomManagementView
                 rooms={rooms}
@@ -659,7 +392,7 @@ export default function App() {
                 settings={settings}
               />
             )}
-            
+
             {activeTab === 'billing' && (
               <BillingInvoicesView
                 rooms={rooms}
@@ -697,10 +430,11 @@ export default function App() {
                 onDeleteTaxInvoice={handleDeleteInvoice}
               />
             )}
-            
+
             {activeTab === 'new-invoice' && (
               <NewInvoiceFormView
                 rooms={rooms}
+                invoices={invoices}
                 prefillData={prefillInvoice}
                 editingInvoice={editingInvoice}
                 nextInvoiceNumber={invoices.filter(i => !i.id.startsWith('TAX-')).length + 1}
@@ -716,7 +450,7 @@ export default function App() {
                 settings={settings}
               />
             )}
-            
+
             {activeTab === 'settings' && (
               <SettingsView
                 onResetDatabase={handleResetDatabase}
@@ -731,23 +465,7 @@ export default function App() {
     );
   };
 
-  if (!isAuthChecked || isLoading) {
-    if (loadTimedOut) {
-      return (
-        <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center font-sans overflow-hidden p-4">
-          <div className="flex flex-col items-center gap-4 text-center max-w-sm">
-            <p className="text-sm text-white/70 font-mono">Taking longer than expected to reach the server.</p>
-            <p className="text-xs text-white/40">Check your internet connection, then try again.</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:opacity-90 font-semibold rounded-xl text-sm transition-all cursor-pointer active:scale-95"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      );
-    }
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center font-sans overflow-hidden">
         <div className="flex flex-col items-center gap-4">
@@ -758,20 +476,26 @@ export default function App() {
     );
   }
 
-  if (!isLoggedIn) {
+  if (loadError) {
     return (
-      <LoginView 
-        onLogin={handleLogin} 
-        onSignUp={handleSignUp}
-        onGoogleLogin={handleGoogleLogin} 
-        userEmail={userEmail} 
-      />
+      <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center font-sans overflow-hidden p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <p className="text-sm text-white/70 font-mono">Couldn't open the local database.</p>
+          <p className="text-xs text-white/40">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:opacity-90 font-semibold rounded-xl text-sm transition-all cursor-pointer active:scale-95"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="flex min-h-screen bg-[#050505] text-white font-sans overflow-x-hidden relative select-none" id="app-canvas-container">
-      
+
       {/* Ambient Mesh Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/15 rounded-full blur-[120px]"></div>
@@ -780,27 +504,10 @@ export default function App() {
         <div className="absolute bottom-1/4 left-1/3 w-[30%] h-[30%] bg-blue-500/15 rounded-full blur-[80px]"></div>
       </div>
 
-      {/* DB Error Banner */}
-      {dbError && (
-        <div className="absolute top-0 left-0 right-0 bg-red-500/90 text-white p-4 z-50 text-center flex items-center justify-center gap-3 shadow-lg backdrop-blur-md">
-          <AlertCircle size={20} />
-          <div>
-            <span className="font-semibold">Database Connection Error:</span> {dbError === 'PERMISSION_DENIED' ? 'Missing or insufficient permissions. Please check your Supabase RLS Policies.' : dbError}
-          </div>
-          <button 
-            onClick={() => setDbError(null)} 
-            className="ml-auto p-1 hover:bg-red-600/50 rounded transition-colors"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
       {/* Collapsible SideNavBar */}
-      <SideNavBar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        onLogout={handleLogout} 
+      <SideNavBar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         isMobileOpen={isMobileSidebarOpen}
@@ -810,21 +517,16 @@ export default function App() {
       <Toaster position="top-right" richColors />
 
       {/* Primary Layout Segment */}
-      <div 
+      <div
         className={`flex-1 transition-all duration-300 ml-0 ${
           isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-[260px]'
-        } flex flex-col min-h-screen relative z-10 overflow-x-hidden`} 
+        } flex flex-col min-h-screen relative z-10 overflow-x-hidden`}
         id="app-main-layout"
       >
-        
+
         {/* Sticky Top Bar Header */}
         <TopNavBar
           activeTab={activeTab}
-          userEmail={userEmail}
-          userDisplayName={userDisplayName}
-          userAvatarUrl={userAvatarUrl}
-          onUpdateDisplayName={handleUpdateDisplayName}
-          onLogout={handleLogout}
           onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
 
@@ -836,7 +538,7 @@ export default function App() {
 
       {/* Drawer: Room Details Trigger Overlay */}
       {selectedRoomId && (
-        <RoomDrawer 
+        <RoomDrawer
           room={selectedRoomObj}
           onClose={() => setSelectedRoomId(null)}
           onSave={handleSaveRoomStatus}
@@ -903,7 +605,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
     setTowelPrice((settings.towelPrice ?? 50).toString());
     setPillowCoverPrice((settings.pillowCoverPrice ?? 30).toString());
   }, [settings]);
-  
+
   const handleSaveSettings = async () => {
     const cgst = parseFloat(cgstPercentage);
     const sgst = parseFloat(sgstpercentage);
@@ -973,7 +675,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        
+
         {/* Core settings form */}
         <div className="glass-panel p-6 rounded-2xl shadow-lg md:col-span-8 space-y-4">
           <div className="flex items-center gap-2 border-b border-white/10 pb-3">
@@ -984,8 +686,8 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Company Address</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="w-full glass-input rounded-xl p-3 text-sm"
@@ -995,8 +697,8 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1 font-body-md">Contact Landline</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm"
@@ -1004,8 +706,8 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               </div>
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">GSTIN Registration</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={gstin}
                   onChange={(e) => setGstin(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm"
@@ -1016,11 +718,11 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">CGST Rate (%)</label>
-                <input 
+                <input
                   type="number"
                   step="any"
                   min="0"
-                  max="100" 
+                  max="100"
                   value={cgstPercentage}
                   onChange={(e) => setCgstPercentage(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm font-mono"
@@ -1028,11 +730,11 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               </div>
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">SGST Rate (%)</label>
-                <input 
+                <input
                   type="number"
                   step="any"
                   min="0"
-                  max="100" 
+                  max="100"
                   value={sgstpercentage}
                   onChange={(e) => setSgstPercentage(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm font-mono"
@@ -1048,7 +750,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Bedsheet (Small) Price (₹)</label>
-                <input 
+                <input
                   type="number"
                   min="0"
                   value={bedsheetSmallPrice}
@@ -1058,7 +760,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               </div>
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Bedsheet (Large) Price (₹)</label>
-                <input 
+                <input
                   type="number"
                   min="0"
                   value={bedsheetLargePrice}
@@ -1068,7 +770,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               </div>
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Extra Bed Price (₹)</label>
-                <input 
+                <input
                   type="number"
                   min="0"
                   value={extraBedPrice}
@@ -1081,7 +783,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Towel Price (₹)</label>
-                <input 
+                <input
                   type="number"
                   min="0"
                   value={towelPrice}
@@ -1091,7 +793,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               </div>
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Pillow Cover Price (₹)</label>
-                <input 
+                <input
                   type="number"
                   min="0"
                   value={pillowCoverPrice}
@@ -1105,12 +807,12 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               <Settings className="h-5 w-5 text-emerald-400" />
               <h4 className="text-base font-bold text-white font-display">Workflow Settings</h4>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Standard Check-In Time</label>
-                <input 
-                  type="time" 
+                <input
+                  type="time"
                   value={defaultcheckintime}
                   onChange={(e) => setDefaultCheckInTime(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm"
@@ -1118,8 +820,8 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               </div>
               <div>
                 <label className="block text-xs font-bold text-white/40 uppercase tracking-wider mb-1">Standard Check-Out Time</label>
-                <input 
-                  type="time" 
+                <input
+                  type="time"
                   value={defaultcheckouttime}
                   onChange={(e) => setDefaultCheckOutTime(e.target.value)}
                   className="w-full glass-input rounded-xl p-3 text-sm"
@@ -1128,7 +830,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
             </div>
           </div>
 
-          <button 
+          <button
             type="button"
             disabled={isSaving}
             onClick={handleSaveSettings}
@@ -1150,7 +852,7 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
               <Building className="h-5 w-5 text-indigo-400" />
               <span>Sekar Inn Branch info</span>
             </div>
-            
+
             <p className="text-xs text-white/60 mt-3 leading-relaxed">
               These properties are automatically added to check-out sheets and printed invoice summaries when generated by desk staff.
             </p>
@@ -1165,227 +867,6 @@ function SettingsView({ onResetDatabase, roomsCount, invoicesCount, settings, on
       </div>
 
 
-    </div>
-  );
-}
-
-// Simple dynamic hotel authentication form
-function LoginView({ 
-  onLogin, 
-  onSignUp,
-  onGoogleLogin, 
-  userEmail 
-}: { 
-  onLogin: (email: string, password: string) => Promise<void>; 
-  onSignUp: (email: string, password: string) => Promise<void>; 
-  onGoogleLogin: () => Promise<void>; 
-  userEmail: string; 
-}) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [activeAuthTab, setActiveAuthTab] = useState<'login' | 'signup'>('login');
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      setError('Please specify a valid account email.');
-      return;
-    }
-    if (!password) {
-      setError('Please specify a password.');
-      return;
-    }
-    if (activeAuthTab === 'signup' && password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (activeAuthTab === 'signup' && password.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError('');
-    try {
-      if (activeAuthTab === 'login') {
-        await onLogin(email, password);
-      } else {
-        await onSignUp(email, password);
-      }
-    } catch (err: any) {
-      const msg = (err.message || '').toLowerCase();
-      if (msg.includes('email not confirmed')) {
-        setError('Please confirm your email address before logging in.');
-      } else if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials') || msg.includes('wrong password')) {
-        setError('Invalid email or password. Please try again.');
-      } else if (msg.includes('user already registered') || msg.includes('already been registered')) {
-        setError('This email is already registered. Try logging in instead.');
-      } else if (msg.includes('password should be')) {
-        setError('Password must be at least 6 characters long.');
-      } else if (msg.includes('unable to validate email address') || msg.includes('invalid email')) {
-        setError('Please enter a valid email address.');
-      } else if (msg.includes('signups not allowed') || msg.includes('not allowed')) {
-        setError('OPERATION_NOT_ALLOWED');
-      } else {
-        setError(err.message || 'An error occurred during authentication.');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGoogleClick = async () => {
-    setIsGoogleSubmitting(true);
-    setError('');
-    try {
-      await onGoogleLogin();
-    } catch (err: any) {
-      setError(err.message || 'Google Sign-In failed.');
-    } finally {
-      setIsGoogleSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#020205] text-white flex items-center justify-center p-4 relative font-sans overflow-hidden">
-      {/* Dynamic blurred meshes */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-1/2 left-1/4 w-[50%] h-[50%] bg-indigo-600/15 rounded-full blur-[120px] -translate-y-1/2"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[45%] h-[45%] bg-emerald-500/10 rounded-full blur-[130px]"></div>
-      </div>
-
-      <div className="glass-panel max-w-sm w-full p-8 rounded-3xl border border-white/10 shadow-2xl relative z-10 space-y-5">
-        <div className="text-center space-y-2">
-          <div className="flex justify-center flex-col items-center gap-3">
-            <img
-              src={logo}
-              alt="Sekar Inn"
-              className="h-20 w-20 rounded-2xl object-cover shadow-lg border border-white/10"
-            />
-            <h1 className="text-2xl font-black text-white tracking-tight font-display">Sekar Inn</h1>
-          </div>
-          <p className="text-xs text-white/50">Desk Management System Authentication Terminal</p>
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 relative z-10 select-none">
-          <button
-            type="button"
-            onClick={() => { setActiveAuthTab('login'); setError(''); setPassword(''); setConfirmPassword(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeAuthTab === 'login' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/10' : 'text-white/40 hover:text-white/70'}`}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveAuthTab('signup'); setError(''); setPassword(''); setConfirmPassword(''); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeAuthTab === 'signup' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/10' : 'text-white/40 hover:text-white/70'}`}
-          >
-            Sign Up
-          </button>
-        </div>
-
-        {error === 'OPERATION_NOT_ALLOWED' ? (
-          <div className="bg-[#1f0f15] border border-rose-500/35 text-rose-200 rounded-2xl p-4 text-xs font-sans space-y-3 shadow-lg select-text">
-            <div className="flex items-start gap-2.5">
-                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 mt-6">
-                  <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm">
-                    <p className="text-red-300 font-semibold mb-1">Configuration Needed</p>
-                    <p className="text-red-200/80 mb-3">
-                      The "Email/Password" provider is not yet enabled in your Supabase project console.
-                    </p>
-                    <div className="bg-[#020205]/50 p-3 rounded-lg border border-white/5 space-y-2 text-white/70 text-xs">
-                      <p>1. Open <a href="https://supabase.com/dashboard/project/_/auth/providers" target="_blank" rel="noreferrer" className="text-indigo-400 underline hover:text-indigo-300 font-sans font-bold inline-flex items-center gap-0.5">Supabase Console <ExternalLink className="h-2.5 w-2.5 inline" /></a></p>
-                      <p>2. Go to Authentication &gt; Providers</p>
-                      <p>3. Enable Email/Password authentication</p>
-                    </div>
-                  </div>
-                </div>
-            </div>
-            <div className="flex flex-col gap-1.5 text-center text-white/40 pt-1">
-              <p className="text-[10px]">Alternatively, sign in instantly using Google below!</p>
-              <button 
-                type="button" 
-                onClick={() => setError('')} 
-                className="text-indigo-400 hover:underline font-bold text-[10px] mt-1 select-none cursor-pointer"
-              >
-                &larr; Clear error &amp; retry email
-              </button>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl p-3 text-xs font-semibold select-text">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Staff Email Address</label>
-              <input 
-                type="email"
-                required
-                disabled={isSubmitting || isGoogleSubmitting}
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                placeholder="e.g. manager@sekarinn.com"
-                className="w-full border border-white/10 bg-white/5 text-white placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-sans font-semibold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Password</label>
-              <input 
-                type="password"
-                required
-                disabled={isSubmitting || isGoogleSubmitting}
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                placeholder="••••••••"
-                className="w-full border border-white/10 bg-white/5 text-slate-100 placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-mono font-bold"
-              />
-            </div>
-
-            {activeAuthTab === 'signup' && (
-              <div>
-                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5">Confirm Password</label>
-                <input 
-                  type="password"
-                  required
-                  disabled={isSubmitting || isGoogleSubmitting}
-                  value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
-                  placeholder="••••••••"
-                  className="w-full border border-white/10 bg-white/5 text-slate-100 placeholder-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 font-mono font-bold"
-                />
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting || isGoogleSubmitting}
-              className="w-full py-3 mt-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:opacity-95 text-white rounded-xl font-bold tracking-wide shadow-lg shadow-indigo-500/10 transition-all select-none cursor-pointer active:scale-95 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isSubmitting && (
-                <div className="w-4 h-4 rounded-full border-2 border-t-white border-white/10 animate-spin"></div>
-              )}
-              {activeAuthTab === 'login' ? 'Authenticate Profile & Login' : 'Register & Create Account'}
-            </button>
-          </form>
-        )}
-
-
-
-        <div className="text-center text-[10px] text-white/30 pt-4 border-t border-white/5 select-none">
-          Sekar Inn Hospitality Ltd. Secure Ledger Gateway &copy; 2026
-        </div>
-      </div>
     </div>
   );
 }

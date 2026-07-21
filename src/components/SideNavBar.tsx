@@ -3,23 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LayoutDashboard, BedDouble, ReceiptText, Settings, LogOut, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, BedDouble, ReceiptText, Settings, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 interface SideNavBarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onLogout: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
 }
 
-export default function SideNavBar({ 
-  activeTab, 
-  setActiveTab, 
-  onLogout,
+export default function SideNavBar({
+  activeTab,
+  setActiveTab,
   isCollapsed,
   onToggleCollapse,
   isMobileOpen,
@@ -126,29 +124,6 @@ export default function SideNavBar({
             );
           })}
         </nav>
-
-        {/* Logout button */}
-        <div className={`mt-auto ${isCollapsed ? 'px-2 md:px-2' : 'px-4'} px-4`}>
-          <button
-            onClick={onLogout}
-            className={`w-full flex items-center transition-all duration-200 ${
-              isCollapsed ? 'md:justify-center md:p-3 p-3 gap-3' : 'gap-3 px-4 py-3.5'
-            } rounded-xl text-sm font-medium text-white/40 hover:bg-red-500/10 hover:text-red-400`}
-            id="logout-btn"
-            title={isCollapsed ? "Logout" : undefined}
-          >
-            <LogOut className="h-5 w-5 text-red-450 opacity-70 flex-shrink-0" />
-            {!isCollapsed ? (
-              <span className="animate-[fadeIn_0.2s_ease-out] whitespace-nowrap overflow-hidden">
-                Logout
-              </span>
-            ) : (
-              <span className="animate-[fadeIn_0.2s_ease-out] whitespace-nowrap overflow-hidden md:hidden">
-                Logout
-              </span>
-            )}
-          </button>
-        </div>
       </aside>
     </>
   );

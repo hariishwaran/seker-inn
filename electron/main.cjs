@@ -1,7 +1,21 @@
-const {app, BrowserWindow, shell} = require('electron');
+const {app, BrowserWindow, shell, ipcMain} = require('electron');
 const path = require('path');
+const db = require('./db.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
+
+function registerDbHandlers() {
+  ipcMain.handle('db:getRooms', () => db.getRooms());
+  ipcMain.handle('db:saveRoom', (_event, room) => db.saveRoom(room));
+  ipcMain.handle('db:deleteRoom', (_event, id) => db.deleteRoom(id));
+  ipcMain.handle('db:getInvoices', () => db.getInvoices());
+  ipcMain.handle('db:saveInvoice', (_event, invoice) => db.saveInvoice(invoice));
+  ipcMain.handle('db:deleteInvoice', (_event, id) => db.deleteInvoice(id));
+  ipcMain.handle('db:updateInvoiceStatus', (_event, id, status) => db.updateInvoiceStatus(id, status));
+  ipcMain.handle('db:getSettings', () => db.getSettings());
+  ipcMain.handle('db:saveSettings', (_event, settings) => db.saveSettings(settings));
+  ipcMain.handle('db:resetDatabase', () => db.resetDatabase());
+}
 
 let mainWindow;
 
@@ -44,6 +58,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  db.init();
+  registerDbHandlers();
   createWindow();
 
   app.on('activate', () => {

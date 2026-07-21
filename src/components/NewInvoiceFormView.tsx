@@ -20,6 +20,7 @@ export interface PrefillInvoiceData {
 
 interface NewInvoiceFormViewProps {
   rooms: Room[];
+  invoices: Invoice[];
   onSaveInvoice: (newInvoice: Invoice) => void;
   onCancel: () => void;
   prefillData?: PrefillInvoiceData | null;
@@ -28,7 +29,7 @@ interface NewInvoiceFormViewProps {
   nextInvoiceNumber?: number;
 }
 
-export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, prefillData, editingInvoice, settings, nextInvoiceNumber }: NewInvoiceFormViewProps) {
+export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onCancel, prefillData, editingInvoice, settings, nextInvoiceNumber }: NewInvoiceFormViewProps) {
   const itemsCatalog = [
     { label: 'Bedsheet(Small)', defaultPrice: settings.bedsheetSmallPrice ?? 150 },
     { label: 'Bedsheet(Large)', defaultPrice: settings.bedsheetLargePrice ?? 250 },
@@ -36,6 +37,11 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
     { label: 'Towel', defaultPrice: settings.towelPrice ?? 50 },
     { label: 'Pillow cover', defaultPrice: settings.pillowCoverPrice ?? 30 },
   ];
+
+  // Invoice number — user-editable, pre-filled with a suggested next number
+  const [invoiceId, setInvoiceId] = useState(
+    editingInvoice ? editingInvoice.id : `SI-${nextInvoiceNumber ?? 1}`
+  );
 
   // Guest Details state
   const [customerName, setCustomerName] = useState('');
@@ -257,6 +263,18 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
   const grandTotal = subtotal + cgst + sgst;
 
   const handleSubmitForm = (status: Invoice['status']) => {
+    const cleanInvoiceId = invoiceId.trim();
+
+    if (!cleanInvoiceId) {
+      toast.error('Please enter an invoice number.');
+      return;
+    }
+
+    if (!editingInvoice && invoices.some(i => i.id === cleanInvoiceId || i.id === `TAX-${cleanInvoiceId}`)) {
+      toast.error(`Invoice number "${cleanInvoiceId}" is already in use. Please choose a different one.`);
+      return;
+    }
+
     if (!customerName) {
       toast.error('Please fill out the guest name.');
       return;
@@ -278,7 +296,7 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
     }
 
     const newInvoiceRecord: Invoice = {
-      id: editingInvoice ? editingInvoice.id : `SI-${nextInvoiceNumber ?? 1}`,
+      id: editingInvoice ? editingInvoice.id : cleanInvoiceId,
       customerName,
       customerPhone: customerPhone || '',
       customerEmail: customerEmail || '',
@@ -395,6 +413,22 @@ export default function NewInvoiceFormView({ rooms, onSaveInvoice, onCancel, pre
             </div>
 
             <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Invoice Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. SI-1"
+                  value={invoiceId}
+                  readOnly={!!editingInvoice}
+                  onChange={(e) => setInvoiceId(e.target.value)}
+                  className={`w-full border border-white/10 rounded-xl p-2.5 text-sm font-mono transition-colors ${
+                    editingInvoice
+                      ? 'bg-white/5 text-white/60 cursor-not-allowed'
+                      : 'bg-white/5 text-white focus:outline-none focus:border-indigo-500'
+                  }`}
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Room Number</label>

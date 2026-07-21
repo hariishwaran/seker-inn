@@ -25,7 +25,6 @@ export default defineConfig(() => {
         output: {
           manualChunks: {
             'pdf-libs': ['jspdf', 'jszip', 'file-saver', 'html-to-image'],
-            'supabase': ['@supabase/supabase-js'],
           },
         },
       },

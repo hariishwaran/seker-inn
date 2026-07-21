@@ -4,7 +4,8 @@
  */
 
 import { Room, Invoice } from '../types';
-import { Bed, CheckCircle, RefreshCw, AlertTriangle, Building, Calendar } from 'lucide-react';
+import { Bed, CheckCircle, RefreshCw, AlertTriangle, Building, Calendar, Users } from 'lucide-react';
+import { formatDateTime } from '../lib/formatDate';
 
 interface DashboardViewProps {
   rooms: Room[];
@@ -36,6 +37,11 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
   );
 
   const draftInvoices = invoices.filter(inv => inv.status === 'Draft');
+
+  // Flatten every room's future-bookings queue into one dashboard-wide list
+  const allFutureBookings = rooms
+    .flatMap(room => (room.futureBookings || []).map(booking => ({ ...booking, roomId: room.id, roomType: room.roomType })))
+    .sort((a, b) => new Date(a.checkInDate).getTime() - new Date(b.checkInDate).getTime());
 
   return (
     <div className="space-y-6" id="dashboard-view">
@@ -207,6 +213,52 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
               </div>
             </div>
           )}
+
+          {/* Upcoming Bookings Queue — every future booking added across all rooms */}
+          <div className="mt-6 border-t border-white/10 pt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-white text-base font-display flex items-center gap-2">
+                <Users className="h-4 w-4 text-violet-400" /> Upcoming Bookings Queue
+              </h3>
+              <span className="text-xs font-mono bg-violet-500/10 border border-violet-500/20 text-violet-300 px-2.5 py-1 rounded-full font-bold">
+                {allFutureBookings.length} Queued
+              </span>
+            </div>
+
+            {allFutureBookings.length === 0 ? (
+              <p className="text-xs text-white/30 italic px-1">No upcoming bookings queued for any room.</p>
+            ) : (
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                {allFutureBookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    onClick={() => onSelectRoom(booking.roomId)}
+                    className="p-3 bg-white/5 border border-white/10 hover:border-violet-500/30 hover:bg-white/10 transition-all rounded-xl cursor-pointer flex justify-between items-start gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">
+                        {booking.guestName} <span className="text-[10px] text-white/50 font-normal ml-1">Room {booking.roomId} · {booking.roomType}</span>
+                      </p>
+                      <p className="text-[10px] text-violet-300 mt-1 font-mono">
+                        {formatDateTime(booking.checkInDate)} &rarr; {formatDateTime(booking.checkOutDate)}
+                      </p>
+                      {booking.guestPhone && (
+                        <p className="text-[10px] text-white/40 mt-0.5">{booking.guestPhone}</p>
+                      )}
+                      {booking.notes && (
+                        <p className="text-[10px] text-white/40 mt-0.5 italic truncate">{booking.notes}</p>
+                      )}
+                    </div>
+                    {booking.numberOfPeople != null && (
+                      <span className="flex-shrink-0 text-[9px] font-bold uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-white/60">
+                        {booking.numberOfPeople} guest{booking.numberOfPeople === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           </div>
 
         {/* Maintenance holds checklist list */}
