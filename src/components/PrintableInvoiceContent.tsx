@@ -9,7 +9,6 @@ import invoiceLogo from '../assets/invoicelogo.png';
 interface PrintableInvoiceContentProps {
   invoice: Invoice;
   settings: SystemSettings;
-  invoiceNumber?: number;
 }
 
 // Quick numbers-to-words converter for Indian rupee bills (lakhs/crores)
@@ -51,16 +50,10 @@ export const getPlace = (invoice: Invoice) => {
   return "";
 };
 
-export const getSimpleReceiptNo = (invoice: Invoice) => {
-  // Strip TAX- prefix for tax copies, then SI- prefix
-  const base = invoice.id.replace(/^TAX-/, '').replace(/^SI-/, '');
-  // New sequential format: SI-1, SI-2 … → base is "1", "2" …
-  if (/^\d+$/.test(base)) return base;
-  // Legacy format: SI-2026-5942 → last digit group
-  const digitMatch = invoice.id.match(/\d+/g);
-  if (digitMatch && digitMatch.length > 0) return digitMatch[digitMatch.length - 1];
-  return invoice.id;
-};
+// The invoice number is fully user-editable, so print it exactly as
+// entered — only the TAX- prefix is stripped, so a billing copy and its
+// paired tax copy show the same number on paper.
+export const getSimpleReceiptNo = (invoice: Invoice) => invoice.id.replace(/^TAX-/, '');
 
 export const formatStayDateOnly = (dateStr: string) => {
   if (!dateStr) return '';
@@ -104,7 +97,7 @@ export const findRentPerDay = (invoice: Invoice) => {
   return stayItem ? stayItem.unitPrice : (invoice.subtotal / (invoice.totalNights || 1));
 };
 
-export default function PrintableInvoiceContent({ invoice, settings, invoiceNumber }: PrintableInvoiceContentProps) {
+export default function PrintableInvoiceContent({ invoice, settings }: PrintableInvoiceContentProps) {
   const cgstRate = invoice.subtotal > 0 ? parseFloat(((invoice.cgst / invoice.subtotal) * 100).toFixed(1)) : settings.cgstPercentage;
   const sgstRate = invoice.subtotal > 0 ? parseFloat(((invoice.sgst / invoice.subtotal) * 100).toFixed(1)) : settings.sgstpercentage;
   const totalTaxRate = (cgstRate + sgstRate).toFixed(2);
@@ -137,7 +130,7 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
            <div className="flex border-b border-black flex-1">
               <div className="w-1/2 border-r border-black p-1.5 px-2">
                 <div className="font-bold">Invoice Number</div>
-                <div>{invoiceNumber ?? getSimpleReceiptNo(invoice)}</div>
+                <div>{getSimpleReceiptNo(invoice)}</div>
               </div>
               <div className="w-1/2 p-1.5 px-2">
                 <div className="font-bold">Invoice Date</div>
