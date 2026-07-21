@@ -18,7 +18,7 @@ const DEFAULT_ROOMS = [
   {id: '110', floor: 1, roomType: 'King Suite (6 sharing) (AC)', status: 'vacant', isAC: 1, basePrice: 4000, extraBedPrice: 500, extraBedsCount: 0, guestName: '', guestId: '', amountDue: 0, maintenancePriority: 'Low', maintenanceNotes: ''},
   {id: '201', floor: 2, roomType: '10 Sharing (Non-AC)', status: 'vacant', isAC: 0, basePrice: 6000, extraBedPrice: 500, extraBedsCount: 0, guestName: '', guestId: '', amountDue: 0, maintenancePriority: 'Low', maintenanceNotes: ''},
   {id: '202', floor: 2, roomType: 'Triple Room (Non-AC)', status: 'vacant', isAC: 0, basePrice: 1500, extraBedPrice: 500, extraBedsCount: 0, guestName: '', guestId: '', amountDue: 0, maintenancePriority: 'Low', maintenanceNotes: ''},
-  {id: '203', floor: 2, roomType: 'Driver Room (triple) (Non-AC)', status: 'vacant', isAC: 0, basePrice: 1500, extraBedPrice: 500, extraBedsCount: 0, guestName: '', guestId: '', amountDue: 0, maintenancePriority: 'Low', maintenanceNotes: ''},
+  {id: '203', floor: 2, roomType: 'Triple Room (Non-AC)', status: 'vacant', isAC: 0, basePrice: 1500, extraBedPrice: 500, extraBedsCount: 0, guestName: '', guestId: '', amountDue: 0, maintenancePriority: 'Low', maintenanceNotes: ''},
 ];
 
 const DEFAULT_SETTINGS = {

@@ -192,7 +192,7 @@ export const initialRooms: Room[] = [
   {
     id: "203",
     floor: 2,
-    roomType: "Driver Room (triple) (Non-AC)",
+    roomType: "Triple Room (Non-AC)",
     status: "vacant",
     isAC: false,
     basePrice: 1500,

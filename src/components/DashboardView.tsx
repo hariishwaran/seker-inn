@@ -18,7 +18,6 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
   // Compute metrics
   const totalRoomsCount = rooms.length;
   const occupiedCount = rooms.filter(r => r.status === 'occupied').length;
-  const bookedCount = rooms.filter(r => r.status === 'booked').length;
   const vacantCount = rooms.filter(r => r.status === 'vacant').length;
   const cleaningCount = rooms.filter(r => r.status === 'cleaning').length;
   const maintenanceCount = rooms.filter(r => r.status === 'maintenance').length;
@@ -81,12 +80,12 @@ export default function DashboardView({ rooms, invoices, setActiveTab, onSelectR
             <Calendar className="h-5 w-5 text-indigo-400" />
           </div>
           <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-3xl font-semibold text-white font-display">{bookedCount}</span>
-            <span className="text-xs text-white/40">/ {totalRoomsCount} Total</span>
+            <span className="text-3xl font-semibold text-white font-display">{allFutureBookings.length}</span>
+            <span className="text-xs text-white/40">Queued</span>
           </div>
           <p className="text-xs text-white/50 mt-2">Future check-ins reserved</p>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/5">
-            <div className="bg-violet-500 h-full" style={{ width: `${(bookedCount / totalRoomsCount) * 100}%` }}></div>
+            <div className="bg-violet-500 h-full" style={{ width: allFutureBookings.length > 0 ? '100%' : '0%' }}></div>
           </div>
         </div>
 
