@@ -311,13 +311,34 @@ export default function App() {
   };
 
   // Handles Saving a New Invoice generated from form
-  const handleSaveInvoice = async (newInvoice: Invoice) => {
+  const handleSaveInvoice = async (newInvoice: Invoice, originalId?: string) => {
     try {
       const cleanId = newInvoice.id.replace(/^#/, '');
-      const isExisting = invoices.some(i => i.id === cleanId);
+      const pairIdFor = (id: string) => (id.startsWith('TAX-') ? id.slice(4) : `TAX-${id}`);
 
-      if (isExisting) {
-        // Editing an existing record (billing or tax) — update only that one
+      if (originalId && originalId !== cleanId) {
+        // Renaming an existing invoice — move both the record being edited
+        // and its billing/tax counterpart to the new id, deleting the old
+        // pair so we don't leave orphaned duplicates behind.
+        const oldPairId = pairIdFor(originalId);
+        const newPairId = pairIdFor(cleanId);
+
+        await Promise.all([
+          db.deleteInvoice(originalId),
+          db.deleteInvoice(oldPairId),
+        ]);
+        await Promise.all([
+          db.saveInvoice({ ...newInvoice, id: cleanId }),
+          db.saveInvoice({ ...newInvoice, id: newPairId }),
+        ]);
+
+        setInvoices(prev => [
+          { ...newInvoice, id: cleanId },
+          { ...newInvoice, id: newPairId },
+          ...prev.filter(i => i.id !== originalId && i.id !== oldPairId),
+        ]);
+      } else if (originalId) {
+        // Editing an existing record (billing or tax) in place — update only that one
         await db.saveInvoice({ ...newInvoice, id: cleanId });
         setInvoices(prev => prev.map(i => i.id === cleanId ? { ...newInvoice, id: cleanId } : i));
       } else {
@@ -438,8 +459,8 @@ export default function App() {
                 prefillData={prefillInvoice}
                 editingInvoice={editingInvoice}
                 nextInvoiceNumber={invoices.filter(i => !i.id.startsWith('TAX-')).length + 1}
-                onSaveInvoice={(invoice) => {
-                  handleSaveInvoice(invoice);
+                onSaveInvoice={(invoice, originalId) => {
+                  handleSaveInvoice(invoice, originalId);
                   setEditingInvoice(null);
                 }}
                 onCancel={() => {

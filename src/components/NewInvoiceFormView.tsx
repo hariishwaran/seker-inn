@@ -21,7 +21,7 @@ export interface PrefillInvoiceData {
 interface NewInvoiceFormViewProps {
   rooms: Room[];
   invoices: Invoice[];
-  onSaveInvoice: (newInvoice: Invoice) => void;
+  onSaveInvoice: (newInvoice: Invoice, originalId?: string) => void;
   onCancel: () => void;
   prefillData?: PrefillInvoiceData | null;
   editingInvoice?: Invoice | null;
@@ -272,7 +272,19 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       return;
     }
 
-    if (!editingInvoice && invoices.some(i => i.id === cleanInvoiceId || i.id === `TAX-${cleanInvoiceId}`)) {
+    // When editing, an invoice's own current id (and its billing/tax
+    // counterpart) don't count as a collision with themselves.
+    const ownIds = editingInvoice
+      ? new Set([
+          editingInvoice.id,
+          editingInvoice.id.startsWith('TAX-') ? editingInvoice.id.slice(4) : `TAX-${editingInvoice.id}`,
+        ])
+      : new Set<string>();
+
+    const isDuplicate = invoices.some(
+      (i) => !ownIds.has(i.id) && (i.id === cleanInvoiceId || i.id === `TAX-${cleanInvoiceId}`)
+    );
+    if (isDuplicate) {
       toast.error(`Invoice number "${cleanInvoiceId}" is already in use. Please choose a different one.`);
       return;
     }
@@ -298,7 +310,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
     }
 
     const newInvoiceRecord: Invoice = {
-      id: editingInvoice ? editingInvoice.id : cleanInvoiceId,
+      id: cleanInvoiceId,
       customerName,
       customerPhone: customerPhone || '',
       customerEmail: customerEmail || '',
@@ -320,7 +332,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       status,
     };
 
-    onSaveInvoice(newInvoiceRecord);
+    onSaveInvoice(newInvoiceRecord, editingInvoice?.id);
   };
 
   return (
@@ -437,14 +449,12 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
                   type="text"
                   placeholder="e.g. SI-1"
                   value={invoiceId}
-                  readOnly={!!editingInvoice}
                   onChange={(e) => setInvoiceId(e.target.value)}
-                  className={`w-full border border-white/10 rounded-xl p-2.5 text-sm font-mono transition-colors ${
-                    editingInvoice
-                      ? 'bg-white/5 text-white/60 cursor-not-allowed'
-                      : 'bg-white/5 text-white focus:outline-none focus:border-indigo-500'
-                  }`}
+                  className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm font-mono focus:outline-none focus:border-indigo-500 transition-colors"
                 />
+                {editingInvoice && (
+                  <p className="text-[10px] text-amber-300/80 mt-1">Changing this renames the invoice (and its paired tax record).</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
