@@ -49,6 +49,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerGst, setCustomerGst] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState<number>(2);
+  const [sourceOfBooking, setSourceOfBooking] = useState(editingInvoice?.sourceOfBooking || 'Walk-in');
 
   // Stay Details state
   const [selectedRoomId, setSelectedRoomId] = useState('');
@@ -126,6 +127,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       setCustomerPhone(editingInvoice.customerPhone || '');
       setCustomerGst(editingInvoice.customerGst || '');
       setNumberOfPeople(editingInvoice.numberOfPeople || 2);
+      setSourceOfBooking(editingInvoice.sourceOfBooking || 'Walk-in');
       setSelectedRoomId(editingInvoice.roomNumber || '');
       setRoomType(editingInvoice.roomType || '');
       setCheckInDate(editingInvoice.checkInDate || '');
@@ -302,6 +304,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       customerEmail: customerEmail || '',
       customerGst: customerGst || undefined,
       numberOfPeople,
+      sourceOfBooking,
       roomNumber: selectedRoomId || '101',
       roomType,
       checkInDate,
@@ -384,7 +387,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">GST Number (optional)</label>
-                  <input 
+                  <input
                     type="text"
                     placeholder="e.g. 33ABCDE1234F1Z5"
                     value={customerGst}
@@ -392,6 +395,21 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
                     className="w-full border border-white/10 bg-white/5 text-white placeholder-white/30 rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Source of Booking</label>
+                <select
+                  value={sourceOfBooking}
+                  onChange={(e) => setSourceOfBooking(e.target.value)}
+                  className="w-full border border-white/10 bg-[#070715] text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
+                >
+                  <option value="Walk-in" className="bg-[#12121e]">Walk-in</option>
+                  <option value="Agoda" className="bg-[#12121e]">Agoda</option>
+                  <option value="MakeMyTrip" className="bg-[#12121e]">MakeMyTrip</option>
+                  <option value="Booking.com" className="bg-[#12121e]">Booking.com</option>
+                  <option value="Airbnb" className="bg-[#12121e]">Airbnb</option>
+                </select>
               </div>
             </div>
           </section>

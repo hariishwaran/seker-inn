@@ -38,10 +38,19 @@ const DEFAULT_SETTINGS = {
 };
 
 const ROOM_COLUMNS = ['id', 'floor', 'roomType', 'status', 'isAC', 'basePrice', 'extraBedPrice', 'extraBedsCount', 'numberOfPeople', 'guestName', 'guestId', 'guestGst', 'checkInDate', 'checkOutDate', 'expectedTime', 'maintenanceIssue', 'maintenancePriority', 'maintenanceNotes', 'amountDue', 'futureBookings'];
-const INVOICE_COLUMNS = ['id', 'customerName', 'customerEmail', 'customerPhone', 'customerGst', 'numberOfPeople', 'roomNumber', 'roomType', 'checkInDate', 'checkOutDate', 'date', 'totalNights', 'lineItems', 'notes', 'subtotal', 'cgst', 'sgst', 'grandTotal', 'status'];
+const INVOICE_COLUMNS = ['id', 'customerName', 'customerEmail', 'customerPhone', 'customerGst', 'numberOfPeople', 'sourceOfBooking', 'roomNumber', 'roomType', 'checkInDate', 'checkOutDate', 'date', 'totalNights', 'lineItems', 'notes', 'subtotal', 'cgst', 'sgst', 'grandTotal', 'status'];
 const SETTINGS_COLUMNS = ['id', 'address', 'phone', 'gstin', 'cgstPercentage', 'sgstpercentage', 'defaultcheckintime', 'defaultcheckouttime', 'bedsheetSmallPrice', 'bedsheetLargePrice', 'extraBedPrice', 'towelPrice', 'pillowCoverPrice'];
 
 let db;
+
+// Adds `column` to `table` if an existing (pre-upgrade) database doesn't
+// have it yet. Safe to call every launch — no-ops once the column exists.
+function ensureColumn(table, column, definitionSql) {
+  const existing = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!existing.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definitionSql}`);
+  }
+}
 
 function init() {
   const dbPath = path.join(app.getPath('userData'), 'sekarinn.db');
@@ -91,7 +100,8 @@ function init() {
       cgst REAL DEFAULT 0,
       sgst REAL DEFAULT 0,
       grandTotal REAL DEFAULT 0,
-      status TEXT DEFAULT 'Draft'
+      status TEXT DEFAULT 'Draft',
+      sourceOfBooking TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -110,6 +120,10 @@ function init() {
       pillowCoverPrice REAL DEFAULT 30
     );
   `);
+
+  // Migrations for databases created before a column was added — CREATE
+  // TABLE IF NOT EXISTS above only helps on a brand new install.
+  ensureColumn('invoices', 'sourceOfBooking', "TEXT DEFAULT ''");
 
   const roomCount = db.prepare('SELECT COUNT(*) AS n FROM rooms').get().n;
   if (roomCount === 0) {

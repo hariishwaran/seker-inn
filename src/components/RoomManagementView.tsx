@@ -309,19 +309,25 @@ export default function RoomManagementView({
               {/* Grid lists */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {floorRooms.map((room) => {
-                  const pulseClass = 
+                  const pulseClass =
                     room.status === 'vacant' ? 'pulse-vacant' :
                     room.status === 'booked' ? 'pulse-booked' :
                     room.status === 'occupied' ? 'pulse-occupied' :
                     room.status === 'cleaning' ? 'pulse-cleaning' :
                     room.status === 'maintenance' ? 'pulse-maintenance' : '';
 
+                  const queuedBookingsCount = room.futureBookings?.length || 0;
+                  const hasQueuedBookings = queuedBookingsCount > 0;
+
                   return (
                     <div
                       key={room.id}
                       onClick={() => onSelectRoom(room.id)}
-                      className={`glass-panel p-5 rounded-2xl shadow-lg hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 cursor-pointer relative overflow-hidden group hover:scale-[1.03] ${pulseClass}`}
+                      className={`glass-panel p-5 rounded-2xl shadow-lg hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 cursor-pointer relative overflow-hidden group hover:scale-[1.03] ${pulseClass} ${
+                        hasQueuedBookings ? 'ring-2 ring-violet-500/50' : ''
+                      }`}
                       id={`room-card-${room.id}`}
+                      title={hasQueuedBookings ? `${queuedBookingsCount} upcoming booking${queuedBookingsCount === 1 ? '' : 's'} queued` : undefined}
                     >
                       {/* Status side indicator */}
                     <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusBgColor(room.status)}`}></div>
@@ -331,14 +337,22 @@ export default function RoomManagementView({
                       <div className="flex items-center gap-2">
                         <span className="text-2xl font-bold text-white tracking-tight font-display">{room.id}</span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                          room.isAC 
-                            ? 'bg-sky-500/10 text-sky-400 border border-sky-500/10' 
+                          room.isAC
+                            ? 'bg-sky-500/10 text-sky-400 border border-sky-500/10'
                             : 'bg-zinc-500/15 text-zinc-400 border border-zinc-500/10'
                         }`}>
                           {room.isAC ? 'AC' : 'Non-AC'}
                         </span>
                       </div>
-                      {getStatusBadge(room.status)}
+                      <div className="flex flex-col items-end gap-1.5">
+                        {getStatusBadge(room.status)}
+                        {hasQueuedBookings && (
+                          <div className="flex items-center gap-1 bg-violet-500/15 border border-violet-500/40 text-violet-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                            <Calendar className="h-2.5 w-2.5" />
+                            <span>{queuedBookingsCount} queued</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex justify-between items-center pl-1.5 mb-6">

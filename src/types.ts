@@ -52,6 +52,7 @@ export interface Invoice {
   customerPhone: string;
   customerGst?: string;
   numberOfPeople?: number;
+  sourceOfBooking?: string; // e.g., "Walk-in", "Agoda", "MakeMyTrip", "Booking.com", "Airbnb"
   roomNumber: string;
   roomType: string;
   checkInDate: string;

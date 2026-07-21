@@ -146,8 +146,8 @@ export default function PrintableInvoiceContent({ invoice, settings, invoiceNumb
            </div>
            <div className="flex border-b border-black flex-1">
               <div className="w-1/2 border-r border-black p-1.5 px-2">
-                <div className="font-bold">Place of Supply</div>
-                <div>33 - Tamil Nadu</div>
+                <div className="font-bold">Source of Booking</div>
+                <div>{invoice.sourceOfBooking || 'Walk-in'}</div>
               </div>
               <div className="w-1/2 p-1.5 px-2">
                  <div className="font-bold">Due date</div>
