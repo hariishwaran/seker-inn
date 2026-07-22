@@ -51,6 +51,7 @@ export interface Invoice {
   customerEmail: string;
   customerPhone: string;
   customerGst?: string;
+  aadharNumber?: string; // Guest Aadhar / ID number
   numberOfPeople?: number;
   sourceOfBooking?: string; // e.g., "Walk-in", "Agoda", "MakeMyTrip", "Booking.com", "Airbnb"
   roomNumber: string;

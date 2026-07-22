@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const ROOM_COLUMNS = ['id', 'floor', 'roomType', 'status', 'isAC', 'basePrice', 'extraBedPrice', 'extraBedsCount', 'numberOfPeople', 'guestName', 'guestId', 'guestGst', 'checkInDate', 'checkOutDate', 'expectedTime', 'maintenanceIssue', 'maintenancePriority', 'maintenanceNotes', 'amountDue', 'futureBookings'];
-const INVOICE_COLUMNS = ['id', 'customerName', 'customerEmail', 'customerPhone', 'customerGst', 'numberOfPeople', 'sourceOfBooking', 'roomNumber', 'roomType', 'checkInDate', 'checkOutDate', 'date', 'totalNights', 'lineItems', 'notes', 'subtotal', 'cgst', 'sgst', 'grandTotal', 'status'];
+const INVOICE_COLUMNS = ['id', 'customerName', 'customerEmail', 'customerPhone', 'customerGst', 'aadharNumber', 'numberOfPeople', 'sourceOfBooking', 'roomNumber', 'roomType', 'checkInDate', 'checkOutDate', 'date', 'totalNights', 'lineItems', 'notes', 'subtotal', 'cgst', 'sgst', 'grandTotal', 'status'];
 const SETTINGS_COLUMNS = ['id', 'address', 'phone', 'gstin', 'cgstPercentage', 'sgstpercentage', 'defaultcheckintime', 'defaultcheckouttime', 'bedsheetSmallPrice', 'bedsheetLargePrice', 'extraBedPrice', 'towelPrice', 'pillowCoverPrice'];
 
 let db;
@@ -87,6 +87,7 @@ function init() {
       customerEmail TEXT DEFAULT '',
       customerPhone TEXT DEFAULT '',
       customerGst TEXT,
+      aadharNumber TEXT DEFAULT '',
       numberOfPeople INTEGER,
       roomNumber TEXT,
       roomType TEXT,
@@ -124,6 +125,7 @@ function init() {
   // Migrations for databases created before a column was added — CREATE
   // TABLE IF NOT EXISTS above only helps on a brand new install.
   ensureColumn('invoices', 'sourceOfBooking', "TEXT DEFAULT ''");
+  ensureColumn('invoices', 'aadharNumber', "TEXT DEFAULT ''");
 
   const roomCount = db.prepare('SELECT COUNT(*) AS n FROM rooms').get().n;
   if (roomCount === 0) {

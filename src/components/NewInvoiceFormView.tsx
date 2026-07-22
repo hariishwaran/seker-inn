@@ -48,6 +48,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerGst, setCustomerGst] = useState('');
+  const [aadharNumber, setAadharNumber] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState<number>(2);
   const [sourceOfBooking, setSourceOfBooking] = useState(editingInvoice?.sourceOfBooking || 'Walk-in');
 
@@ -126,6 +127,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       setCustomerEmail(editingInvoice.customerEmail || '');
       setCustomerPhone(editingInvoice.customerPhone || '');
       setCustomerGst(editingInvoice.customerGst || '');
+      setAadharNumber(editingInvoice.aadharNumber || '');
       setNumberOfPeople(editingInvoice.numberOfPeople || 2);
       setSourceOfBooking(editingInvoice.sourceOfBooking || 'Walk-in');
       setSelectedRoomId(editingInvoice.roomNumber || '');
@@ -315,6 +317,7 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       customerPhone: customerPhone || '',
       customerEmail: customerEmail || '',
       customerGst: customerGst || undefined,
+      aadharNumber: aadharNumber || '',
       numberOfPeople,
       sourceOfBooking,
       roomNumber: selectedRoomId || '101',
@@ -407,6 +410,17 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
                     className="w-full border border-white/10 bg-white/5 text-white placeholder-white/30 rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Aadhar Number (optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1234 5678 9012"
+                  value={aadharNumber}
+                  onChange={(e) => setAadharNumber(e.target.value)}
+                  className="w-full border border-white/10 bg-white/5 text-white placeholder-white/30 rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                />
               </div>
 
               <div>

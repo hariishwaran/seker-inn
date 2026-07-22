@@ -32,14 +32,10 @@ export function convertNumberToWords(amount: number): string {
   return words ? `Rs. ${words} Only` : "Rs. Only";
 }
 
-// Mask Aadhar - show only last 4 digits if present
-export const getMaskedAadhar = (invoice: Invoice): string => {
-  const match = invoice.notes?.match(/\b\d{12}\b/);
-  if (match) {
-    const aadhar = match[0];
-    return `XXXX XXXX ${aadhar.slice(-4)}`;
-  }
-  return '-';
+// Show the guest Aadhar number as entered on the invoice; fall back to a
+// dash when none was provided.
+export const getAadharNumber = (invoice: Invoice): string => {
+  return invoice.aadharNumber?.trim() || '-';
 };
 
 export const getPlace = (invoice: Invoice) => {
@@ -124,7 +120,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
              <span>{settings.address || "Lakshmimanagaram Middle Street, Arumuganeri, Thoothukudi | Tamil Nadu | 628202"}</span>
            </div>
            <div><b>Phone No:</b> {settings.phone || "+91 8667092950"} | <b>Email:</b> sekarinn@example.com</div>
-           <div><b>GSTIN -</b> {settings.gstin || '33KKRPS8566Q1ZK'} | <b>PAN -</b> XXXXXXXXXXXXX</div>
+           <div><b>GSTIN -</b> {settings.gstin || '33KKRPS8566Q1ZK'}</div>
         </div>
         <div className="w-[40%] flex flex-col">
            <div className="flex border-b border-black flex-1">
@@ -160,7 +156,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
         <div><b>Name -</b> {invoice.customerName}</div>
         <div><b>Phone No -</b> {invoice.customerPhone}</div>
         <div><b>Email ID -</b> {invoice.customerEmail}</div>
-        <div><b>Aadhar No -</b> {getMaskedAadhar(invoice)}</div>
+        <div><b>Aadhar No -</b> {getAadharNumber(invoice)}</div>
       </div>
 
       {/* Table */}
@@ -273,6 +269,13 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
       <div className="border-b border-black p-1.5 font-bold pl-2 text-sm">
          {convertNumberToWords(invoice.grandTotal)}
       </div>
+
+      {/* Notes */}
+      {invoice.notes && invoice.notes.trim() && (
+        <div className="border-b border-black p-1.5 pl-2 text-xs">
+          <b>Notes:</b> {invoice.notes}
+        </div>
+      )}
 
       {/* Footer Section */}
       <div className="flex">
