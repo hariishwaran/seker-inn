@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Invoice, SystemSettings } from '../types';
 import { formatDate } from '../lib/formatDate';
 import {
@@ -13,7 +13,6 @@ import {
 import BatchPdfExportProcess from './BatchPdfExportProcess';
 
 interface TaxFilingViewProps {
-  billingInvoices: Invoice[];
   taxInvoices: Invoice[];
   settings: SystemSettings;
   onEditTaxInvoice: (invoice: Invoice) => void;
@@ -22,7 +21,6 @@ interface TaxFilingViewProps {
 }
 
 export default function TaxFilingView({
-  billingInvoices,
   taxInvoices,
   settings,
   onEditTaxInvoice,
@@ -35,14 +33,12 @@ export default function TaxFilingView({
   const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 10;
 
-  // For every billing invoice, show the real TAX- copy if it exists,
-  // otherwise derive one from the billing record so all invoices appear here.
-  const taxRows = useMemo(() => {
-    return billingInvoices.map((billing) => {
-      const real = taxInvoices.find(t => t.id === `TAX-${billing.id}`);
-      return real ?? { ...billing, id: `TAX-${billing.id}` };
-    });
-  }, [billingInvoices, taxInvoices]);
+  // Show the real, editable TAX- copies. Deleting one here removes just
+  // that tax record — the Billing Ledger is never touched. (Previously
+  // these rows were derived from billingInvoices, so a deleted tax copy
+  // immediately regenerated from its billing parent and delete appeared
+  // to do nothing.)
+  const taxRows = taxInvoices;
 
   const filtered = taxRows.filter(inv =>
     inv.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -179,7 +175,7 @@ export default function TaxFilingView({
               {paginated.length === 0 && (
                 <tr>
                   <td colSpan={10} className="text-center py-16 text-white/30 text-xs">
-                    {billingInvoices.length === 0
+                    {taxInvoices.length === 0
                       ? 'No invoices yet. Create one from the Billing/Invoices tab.'
                       : 'No records match your search.'}
                   </td>
@@ -261,7 +257,7 @@ export default function TaxFilingView({
         <div className="lg:hidden divide-y divide-white/5">
           {paginated.length === 0 && (
             <div className="text-center py-16 text-white/30 text-xs">
-              {billingInvoices.length === 0 ? 'No invoices yet.' : 'No records match your search.'}
+              {taxInvoices.length === 0 ? 'No invoices yet.' : 'No records match your search.'}
             </div>
           )}
           {paginated.map((inv) => (

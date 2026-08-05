@@ -439,7 +439,6 @@ export default function App() {
 
             {activeTab === 'tax-filing' && (
               <TaxFilingView
-                billingInvoices={invoices.filter(i => !i.id.startsWith('TAX-'))}
                 taxInvoices={invoices.filter(i => i.id.startsWith('TAX-'))}
                 settings={settings}
                 onEditTaxInvoice={(invoice) => {
