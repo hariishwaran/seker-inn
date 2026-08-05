@@ -80,6 +80,10 @@ const to12Hour = (time: string): string => {
 export const formatStayTime = (dateStr: string, isCheckOut = false, settings?: SystemSettings) => {
   if (!dateStr) return '';
   if (dateStr.includes('at')) return to12Hour(dateStr.split(' at')[1].trim());
+  // ISO datetime like "2026-07-31T14:00" — print the actual time the user entered.
+  const isoTimeMatch = dateStr.match(/T(\d{2}:\d{2})/);
+  if (isoTimeMatch) return to12Hour(isoTimeMatch[1]);
+  // Date-only value — fall back to the configured default check-in/out time.
   const raw = isCheckOut ? (settings?.defaultcheckouttime || '11:00') : (settings?.defaultcheckintime || '12:00');
   return to12Hour(raw);
 };
@@ -157,6 +161,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
         <div><b>Phone No -</b> {invoice.customerPhone}</div>
         <div><b>Email ID -</b> {invoice.customerEmail}</div>
         <div><b>Aadhar No -</b> {getAadharNumber(invoice)}</div>
+        <div><b>GST No -</b> {invoice.customerGst?.trim() || '-'}</div>
       </div>
 
       {/* Table */}

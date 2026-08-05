@@ -30,6 +30,16 @@ interface NewInvoiceFormViewProps {
 }
 
 export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onCancel, prefillData, editingInvoice, settings, nextInvoiceNumber }: NewInvoiceFormViewProps) {
+  // A <input type="datetime-local"> only displays a value that carries a
+  // time component (YYYY-MM-DDTHH:MM). Older invoices may have a date-only
+  // value, so pad those with the configured default check-in/out time.
+  const toDateTimeLocal = (value: string | undefined, isCheckOut = false): string => {
+    if (!value) return '';
+    if (value.includes('T')) return value.slice(0, 16);
+    const time = isCheckOut ? (settings.defaultcheckouttime || '11:00') : (settings.defaultcheckintime || '12:00');
+    return `${value}T${time}`;
+  };
+
   const itemsCatalog = [
     { label: 'Bedsheet(Small)', defaultPrice: settings.bedsheetSmallPrice ?? 150 },
     { label: 'Bedsheet(Large)', defaultPrice: settings.bedsheetLargePrice ?? 250 },
@@ -104,10 +114,10 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
           setNumberOfPeople(matchRoom.numberOfPeople);
         }
         if (matchRoom.checkInDate) {
-          setCheckInDate(matchRoom.checkInDate);
+          setCheckInDate(toDateTimeLocal(matchRoom.checkInDate, false));
         }
         if (matchRoom.checkOutDate) {
-          setCheckOutDate(matchRoom.checkOutDate);
+          setCheckOutDate(toDateTimeLocal(matchRoom.checkOutDate, true));
         }
         if (matchRoom.extraBedsCount && matchRoom.extraBedsCount > 0) {
           setHasExtraBed(true);
@@ -132,8 +142,8 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
       setSourceOfBooking(editingInvoice.sourceOfBooking || 'Walk-in');
       setSelectedRoomId(editingInvoice.roomNumber || '');
       setRoomType(editingInvoice.roomType || '');
-      setCheckInDate(editingInvoice.checkInDate || '');
-      setCheckOutDate(editingInvoice.checkOutDate || '');
+      setCheckInDate(toDateTimeLocal(editingInvoice.checkInDate, false));
+      setCheckOutDate(toDateTimeLocal(editingInvoice.checkOutDate, true));
       
       const extraBedItem = editingInvoice.lineItems.find(item => item.description.includes('Extra Bed'));
       if (extraBedItem) {
@@ -159,10 +169,10 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
         setNumberOfPeople(prefillData.numberOfPeople);
       }
       if (prefillData.checkInDate) {
-        setCheckInDate(prefillData.checkInDate);
+        setCheckInDate(toDateTimeLocal(prefillData.checkInDate, false));
       }
       if (prefillData.checkOutDate) {
-        setCheckOutDate(prefillData.checkOutDate);
+        setCheckOutDate(toDateTimeLocal(prefillData.checkOutDate, true));
       }
       if (prefillData.extraBedsCount && prefillData.extraBedsCount > 0) {
         setHasExtraBed(true);
@@ -500,18 +510,18 @@ export default function NewInvoiceFormView({ rooms, invoices, onSaveInvoice, onC
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Check-In Date</label>
-                  <input 
-                    type="date"
+                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Check-In Date &amp; Time</label>
+                  <input
+                    type="datetime-local"
                     value={checkInDate}
                     onChange={(e) => setCheckInDate(e.target.value)}
                     className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Check-Out Date</label>
-                  <input 
-                    type="date"
+                  <label className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1">Check-Out Date &amp; Time</label>
+                  <input
+                    type="datetime-local"
                     value={checkOutDate}
                     onChange={(e) => setCheckOutDate(e.target.value)}
                     className="w-full border border-white/10 bg-white/5 text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
