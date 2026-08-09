@@ -54,6 +54,10 @@ export const getSimpleReceiptNo = (invoice: Invoice) => invoice.id.replace(/^TAX
 export const formatStayDateOnly = (dateStr: string) => {
   if (!dateStr) return '';
   if (dateStr.includes('at')) return dateStr.split(' at')[0];
+  // Already DD/MM/YYYY (e.g. invoice.date) — return as-is so we don't
+  // re-parse it as US MM/DD and flip the day and month.
+  const dmy = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) return `${dmy[1].padStart(2, '0')}/${dmy[2].padStart(2, '0')}/${dmy[3]}`;
   try {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {

@@ -2,6 +2,11 @@ const {app, BrowserWindow, shell, ipcMain} = require('electron');
 const path = require('path');
 const db = require('./db.cjs');
 
+// Force a DD/MM/YYYY locale so the native <input type="date"/"datetime-local">
+// pickers render day/month/year regardless of the machine's OS locale
+// (e.g. a US-locale Windows would otherwise show MM/DD/YYYY).
+app.commandLine.appendSwitch('lang', 'en-GB');
+
 const isDev = process.env.NODE_ENV === 'development';
 
 function registerDbHandlers() {

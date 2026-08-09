@@ -1,5 +1,11 @@
+// Match an already-formatted DD/MM/YYYY string so we never re-parse it with
+// `new Date()` (which treats "05/08/2026" as US MM/DD and flips day/month).
+const DMY = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+
 export function formatDate(dateStr: string | undefined | null): string {
   if (!dateStr) return '';
+  const dmy = dateStr.match(DMY);
+  if (dmy) return `${dmy[1].padStart(2, '0')}/${dmy[2].padStart(2, '0')}/${dmy[3]}`;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const day = String(d.getDate()).padStart(2, '0');
@@ -10,6 +16,9 @@ export function formatDate(dateStr: string | undefined | null): string {
 
 export function formatDateTime(dateStr: string | undefined | null): string {
   if (!dateStr) return '';
+  // A plain DD/MM/YYYY (date only, no time) — return it as-is.
+  const dmy = dateStr.match(DMY);
+  if (dmy) return `${dmy[1].padStart(2, '0')}/${dmy[2].padStart(2, '0')}/${dmy[3]}`;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const day = String(d.getDate()).padStart(2, '0');
@@ -23,4 +32,3 @@ export function formatDateTime(dateStr: string | undefined | null): string {
   const hoursStr = String(hours).padStart(2, '0');
   return `${day}/${month}/${year}, ${hoursStr}:${minutes} ${ampm}`;
 }
-
