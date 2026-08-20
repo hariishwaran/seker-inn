@@ -164,6 +164,7 @@ export default function PrintableInvoiceContent({ invoice, settings }: Printable
         <div><b>Name -</b> {invoice.customerName}</div>
         <div><b>Phone No -</b> {invoice.customerPhone}</div>
         <div><b>Email ID -</b> {invoice.customerEmail}</div>
+        <div><b>No. of People -</b> {invoice.numberOfPeople ?? '-'}</div>
         <div><b>Aadhar No -</b> {getAadharNumber(invoice)}</div>
         <div><b>GST No -</b> {invoice.customerGst?.trim() || '-'}</div>
       </div>
